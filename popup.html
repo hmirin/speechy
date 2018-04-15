@@ -1,0 +1,77 @@
+<html>
+
+<head>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css" integrity="sha384-9gVQ4dYFwwWSjIDZnLEWnxCjeSWFphJiwGPXr1jddIhOegiu1FwO5qRGvFXOdJZ4"
+    crossorigin="anonymous">
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js" integrity="sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm"
+    crossorigin="anonymous"></script>
+</head>
+
+<body style="min-width:600px;">
+  <div>
+    <div class="container">
+      <div>
+        <h1>Speechy
+          <span>
+            <img src="./images/icon128.png" width="64">
+          </span>
+        </h1>
+        <form id="api_settings">
+          <div class="form-group">
+            <label for="api_provider">API Provider</label>
+            <select class="form-control api_settings_form_inputs" id="api_provider">
+              <option>Google</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="apikey">apikey</label>
+            <input type="text" class="form-control api_settings_form_inputs" id="apikey">
+          </div>
+          <div class="btn btn-primary" id="save_api_options">Save</div>
+          <div class="btn btn-primary" id="change_api_key" style="display: none">Update API settings</div>
+        </form>
+        <form style="display:none;" id="provider_settings_form">
+          <div class="form-group">
+            <label for="voice">Voice</label>
+            <select class="form-control provider_settings_form_inputs" id="voice">
+              <option>en-US-Wavenet-A</option>
+              <option>en-US-Wavenet-B</option>
+              <option>en-US-Wavenet-C</option>
+              <option>en-US-Wavenet-D</option>
+              <option>en-US-Wavenet-E</option>
+              <option>en-US-Wavenet-F</option>
+              <option>en-GB-Standard-A</option>
+              <option>en-GB-Standard-B</option>
+              <option>en-GB-Standard-C</option>
+              <option>en-GB-Standard-D</option>
+              <option>en-US-Standard-B</option>
+              <option>en-US-Standard-C</option>
+              <option>en-US-Standard-D</option>
+              <option>en-US-Standard-E</option>
+              <option>de-DE-Standard-A</option>
+              <option>de-DE-Standard-B</option>
+              <option>en-AU-Standard-A</option>
+              <option>en-AU-Standard-B</option>
+              <option>en-AU-Standard-C</option>
+              <option>en-AU-Standard-D</option>
+              <option>fr-CA-Standard-A</option>
+              <option>fr-CA-Standard-B</option>
+              <option>fr-CA-Standard-C</option>
+              <option>fr-CA-Standard-D</option>
+              <option>fr-FR-Standard-C</option>
+              <option>es-ES-Standard-A</option>
+              <option>ja-JP-Standard-A</option>
+              <option>pt-BR-Standard-A</option>
+              <option>tr-TR-Standard-A</option>
+              <option>sv-SE-Standard-A</option>
+              <option>nl-NL-Standard-A</option>
+            </select>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script type="text/javascript" src="./js/popup.js"></script>
+</body>
+
+</html>

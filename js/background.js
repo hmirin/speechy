@@ -1,3 +1,5 @@
+speaker = new Audio();
+
 chrome.contextMenus.create({
     title: "Read this by Speechy",
     contexts: ["selection"],
@@ -90,8 +92,8 @@ function google_cloud_tts(text, chosen_provider_options, api_key) {
 }
 
 function playvoice(audio_string) {
-    sound = new Audio("data:audio/wav;base64," + audio_string);
-    sound.play();
+    speaker.src = "data:audio/wav;base64," + audio_string
+    speaker.play();
 }
 
 function google_cloud_tts_error_handler(err) {

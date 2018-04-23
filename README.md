@@ -1,6 +1,7 @@
 # Speechy
 
 This repository is the source code of [Speechy](https://chrome.google.com/webstore/detail/speechy/flpjdaabfegkkifhogoilelmjcipihnp), a Chrome Extension for paid high quality Text-to-Speech(TTS) APIs.
+See [project page](https://hmirin.github.io/speechy/).
 
 ## Features
 

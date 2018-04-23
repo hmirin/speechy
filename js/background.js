@@ -104,3 +104,11 @@ function google_cloud_tts_error_handler(err) {
     }
     console.error(err);
 }
+
+chrome.runtime.onInstalled.addListener(function(details){
+    if(details.reason == "install"){
+        chrome.tabs.create({ url: "https://hmirin.github.io/speechy/installed.html" });
+    }else if(details.reason == "update"){
+        chrome.tabs.create({ url: "https://hmirin.github.io/speechy/installed.html" });
+    }
+});

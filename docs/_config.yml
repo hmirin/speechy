@@ -1,0 +1,13 @@
+title: "Speechy"
+description: A Chrome extension for paid high-quality Text-to-Speech APIs.
+show_downloads: true
+google_analytics:
+theme: jekyll-theme-cayman
+chrome_webstore_url: "https://chrome.google.com/webstore/detail/speechy/flpjdaabfegkkifhogoilelmjcipihnp"
+
+# non github
+github:
+  is_project_page: true
+  repository_name: speechy
+  owner_name: hmirin
+  repository_url: https://github.com/hmirin/speechy

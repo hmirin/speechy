@@ -68,12 +68,13 @@ function to_voice(text) {
 function google_cloud_tts(text, chosen_provider_options, api_key) {
     var endpoint = "https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=" + api_key;
     var language = chosen_provider_options.voice.split("-").slice(0, 2).join("-")
+    var speed = chosen_provider_options.speed || 1
     fetch(endpoint, {
         method: "POST",
         body: JSON.stringify({
             "input": { "text": text },
             "voice": { "name": chosen_provider_options.voice, "languageCode": language },
-            "audioConfig": { "audioEncoding": "LINEAR16" }
+            "audioConfig": { "audioEncoding": "LINEAR16", "speakingRate": speed }
         }),
     })
         .then((res) => {

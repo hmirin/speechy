@@ -50,41 +50,19 @@ function restore_options() {
 
 document.addEventListener('DOMContentLoaded', restore_options);
 
-var languages;
-var voices;
-function get_provider_options(api_provider, api_key) {
-    if (api_provider == "Google") {
-        endpoint = "https://texttospeech.googleapis.com/v1beta1/voices?key=" + api_key
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                voices = this.response.voices;
-                var raw_codes = new Array;
-                for (var i = 0; i < voices.length; i++) {
-                    raw_codes.push(voices[i].languageCodes[0]); // depending on what you're doing
-                }
-                languages = new Array(new Set(raw_codes));
-            }
-        };
-        xhr.responseType = 'json';
-        xhr.open('GET', endpoint, true);
-        xhr.send();
-    } else {
-        alert("Sorry, no such provider is available now.")
-    }
-}
-
 function get_chosen_provider_options(api_provider) {
     if (api_provider == "Google") {
         return {
-            voice: document.getElementById("voice").value
+            voice: document.getElementById("voice").value,
+            speed: document.getElementById("speed").value
         }
     }
 }
 
 function set_chosen_provider_options(api_provider, chosen_provider_options) {
     if (api_provider == "Google") {
-        document.getElementById("voice").value = chosen_provider_options.voice
+        document.getElementById("voice").value = chosen_provider_options.voice;
+        sync_speed(chosen_provider_options.speed)
     }
 }
 
@@ -124,12 +102,21 @@ function show_provider_options(api_provider, status) {
     }
 }
 
-function set_provider_options(api_provider, provider_options) {
-    if (api_provider == "Google") {
 
+function sync_speed(value) {
+    if (value === void 0 || !isFinite(value)) {
+        value = document.getElementById("speed").value;
+    } else if (value < 0.25 || value > 4) {
+        value = 1;
     }
+    document.getElementById("speedometer").innerHTML = value;
+    document.getElementById("speed").value = value;
 }
 
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById("speed").addEventListener("change", sync_speed);
+}
+)
 
 document.addEventListener('DOMContentLoaded', function () {
     document.getElementById("help_link").addEventListener("click", openIndex);

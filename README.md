@@ -6,10 +6,11 @@ See [project page](https://hmirin.github.io/speechy/).
 ## Features
 
 Available
-- Read selected text from context menu
+- Read selected text aloud 
+    - Can be triggered from context menu  
+- Change voice speed from extension icon menu
 
 Planned
-- Change voice speed
 - Stop voice from extension menu.
 
 ## Supported APIs

@@ -26,7 +26,7 @@ chrome.contextMenus.create({
 });
 
 
-//The following code to get the selection is from an answer to "Get the
+//  The following code to get the selection is from an answer to "Get the
 //  Highlighted/Selected text" on Stack Overflow, available at:
 //  https://stackoverflow.com/a/5379408
 //  The answer is copyright 2011-2017 by Tim Down and Makyen. It is

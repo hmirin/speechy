@@ -19,8 +19,6 @@ document.getElementById('save_api_options').addEventListener('click', save_api_o
 function save_provider_options() {
     var api_provider = document.getElementById('api_provider').value;
     var chosen_provider_options = get_chosen_provider_options(api_provider);
-    console.log(api_provider);
-    console.log(chosen_provider_options);
     chrome.storage.sync.set({
         chosen_provider_options: chosen_provider_options
     }, function () {
@@ -133,13 +131,11 @@ function set_provider_options(api_provider, provider_options) {
 }
 
 
-console.log("attached");
-chrome.runtime.onMessage.addListener(
-    function (request, sender, sendResponse) {
-        console.log(request);
-        if (request.msg === "selected_text") {
-            to_voice(request.data.text);
-            console.log("played");
-        }
-    }
-);
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById("help_link").addEventListener("click", openIndex);
+}
+)
+
+function openIndex() {
+    chrome.tabs.create({ active: true, url: "https://hmirin.github.io/speechy/installed#usage" });
+}

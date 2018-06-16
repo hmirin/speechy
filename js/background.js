@@ -1,5 +1,7 @@
 speaker = new Audio();
 
+selection_error_message = "Couldn't retrieve the selected text. \nNote: Speechy won't work on PDFs, urls starts with chrome:// and Chrome app store, because of the limit of Chrome's API."
+
 chrome.contextMenus.create({
     title: "Read this by Speechy",
     contexts: ["selection"],
@@ -10,17 +12,25 @@ chrome.contextMenus.create({
             allFrames: true,
             matchAboutBlank: true
         }, function (results) {
-            selectedText = results.reduce(function (sum, value) {
-                if (value) {
-                    if (sum) {
-                        console.log('Selections have been made in multiple frames:');
-                        console.log('Had:', sum, '::  found additional:', value);
+            if (results === void 0) {
+                alert(selection_error_message);
+            } else {
+                selectedText = results.reduce(function (sum, value) {
+                    if (value) {
+                        if (sum) {
+                            console.log('Selections have been made in multiple frames:');
+                            console.log('Had:', sum, '::  found additional:', value);
+                        }
+                        return value;
                     }
-                    return value;
+                    return sum;
+                }, '');
+                if (selectedText === '') {
+                    alert(selection_error_message);
+                } else {
+                    to_voice(selectedText);
                 }
-                return sum;
-            }, '');
-            to_voice(selectedText);
+            }
         });
     }
 });

@@ -7,34 +7,37 @@ chrome.contextMenus.create({
     contexts: ["selection"],
     type: "normal",
     onclick: function (info) {
-        chrome.tabs.executeScript({
-            code: '(' + getSelectionText.toString() + ')()',
-            allFrames: true,
-            matchAboutBlank: true
-        }, function (results) {
-            if (results === void 0) {
-                alert(selection_error_message);
-            } else {
-                selectedText = results.reduce(function (sum, value) {
-                    if (value) {
-                        if (sum) {
-                            console.log('Selections have been made in multiple frames:');
-                            console.log('Had:', sum, '::  found additional:', value);
-                        }
-                        return value;
-                    }
-                    return sum;
-                }, '');
-                if (selectedText === '') {
-                    alert(selection_error_message);
-                } else {
-                    to_voice(selectedText);
-                }
-            }
-        });
+        read_selected_text();
     }
 });
 
+function read_selected_text() {
+    chrome.tabs.executeScript({
+        code: '(' + getSelectionText.toString() + ')()',
+        allFrames: true,
+        matchAboutBlank: true
+    }, function (results) {
+        if (results === void 0) {
+            alert(selection_error_message);
+        } else {
+            selectedText = results.reduce(function (sum, value) {
+                if (value) {
+                    if (sum) {
+                        console.log('Selections have been made in multiple frames:');
+                        console.log('Had:', sum, '::  found additional:', value);
+                    }
+                    return value;
+                }
+                return sum;
+            }, '');
+            if (selectedText === '') {
+                alert(selection_error_message);
+            } else {
+                to_voice(selectedText);
+            }
+        }
+    });
+}
 
 //  The following code to get the selection is from an answer to "Get the
 //  Highlighted/Selected text" on Stack Overflow, available at:
@@ -123,3 +126,9 @@ chrome.runtime.onInstalled.addListener(function (details) {
         chrome.tabs.create({ url: "https://hmirin.github.io/speechy/installed" });
     }
 });
+
+chrome.commands.onCommand.addListener(function(command) {
+    if (command == "read_the_selected_text") {
+        read_selected_text();
+    }
+  });

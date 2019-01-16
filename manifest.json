@@ -19,6 +19,15 @@
     "*://texttospeech.googleapis.com/*",
     "storage"
   ],
+  "commands": {
+    "read_the_selected_text": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+1"
+      },
+      "description": "Read the selected text in Speechy",
+      "global": true
+    }
+  },
   "icons": {
     "128": "images/icon128.png",
     "16": "images/icon16.png"

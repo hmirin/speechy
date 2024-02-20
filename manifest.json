@@ -36,10 +36,10 @@
   "commands": {
     "read_the_selected_text": {
       "suggested_key": {
-        "default": "Ctrl+Shift+1"
+        "default": "Ctrl+Shift+1",
+        "mac": "MacCtrl+Shift+1"
       },
-      "description": "Read the selected text in Speechy",
-      "global": true
+      "description": "Read the selected text in Speechy"
     }
   },
   "icons": {

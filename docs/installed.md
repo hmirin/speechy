@@ -37,3 +37,5 @@ layout: pages
 1. Select text
 2. Click "Read this with Speechy" from the context menu.
     ![Screenshot_2](/images/screenshot_2.png)
+
+🍭 Keyboard shortcut can be used (default: `Ctrl+Shift+1`, change it from `chrome://extensions/shortcuts`)

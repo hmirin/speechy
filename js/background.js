@@ -1,41 +1,59 @@
-speaker = new Audio();
-
 selection_error_message = "Couldn't retrieve the selected text. \nNote: Speechy won't work on PDFs, urls starts with chrome:// and Chrome app store, because of the limit of Chrome's API."
 
-chrome.contextMenus.create({
-    title: "Read this by Speechy",
-    contexts: ["selection"],
-    type: "normal",
-    onclick: function (info) {
+chrome.runtime.onInstalled.addListener(() => {
+    chrome.contextMenus.create({
+        id: "readBySpeechy",
+        title: "Read this by Speechy",
+        contexts: ["selection"]
+    });
+});
+
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "readBySpeechy") {
         read_selected_text();
     }
 });
 
 function read_selected_text() {
-    chrome.tabs.executeScript({
-        code: '(' + getSelectionText.toString() + ')()',
-        allFrames: true,
-        matchAboutBlank: true
-    }, function (results) {
-        if (results === void 0) {
-            alert(selection_error_message);
-        } else {
-            selectedText = results.reduce(function (sum, value) {
-                if (value) {
-                    if (sum) {
-                        console.log('Selections have been made in multiple frames:');
-                        console.log('Had:', sum, '::  found additional:', value);
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        if (tabs.length === 0) return;
+        let tabId = tabs[0].id;
+
+        chrome.scripting.executeScript({
+            target: {tabId: tabId, allFrames: true},
+            function: getSelectionText,
+        }, (results) => {
+            if (results && results.length > 0) {
+                var selectedText = results.reduce(function(sum, value) {
+                    if (value.result) {
+                        if (sum) {
+                            console.log('Selections have been made in multiple frames:');
+                            console.log('Had:', sum, '::  found additional:', value.result);
+                        }
+                        return value.result;
                     }
-                    return value;
+                    return sum;
+                }, '');
+                if (selectedText === '') {
+                    chrome.notifications.create({
+                        type: 'basic',
+                        iconUrl: '/images/icon128.png',
+                        title: 'Speechy',
+                        message: selection_error_message
+                    });
+                } else {
+                    to_voice(selectedText);
                 }
-                return sum;
-            }, '');
-            if (selectedText === '') {
-                alert(selection_error_message);
             } else {
-                to_voice(selectedText);
+                chrome.notifications.create({
+                    type: 'basic',
+                    iconUrl: '/images/icon128.png',
+                    title: 'Speechy',
+                    message: selection_error_message
+                });
             }
-        }
+        });
     });
 }
 
@@ -73,7 +91,12 @@ function to_voice(text) {
         if (api_provider == "Google") {
             google_cloud_tts(text, chosen_provider_options, api_key);
         } else {
-            alert("Please select a API provider and setup your API key.");
+            chrome.notifications.create({
+                type: 'basic',
+                iconUrl: '/images/icon128.png',
+                title: 'Speechy',
+                message: "Please select a API provider and setup your API key."
+            });
         };
     });
 }
@@ -106,15 +129,30 @@ function google_cloud_tts(text, chosen_provider_options, api_key) {
 }
 
 function playvoice(audio_string) {
-    speaker.src = "data:audio/wav;base64," + audio_string
-    speaker.play();
+    // Example of sending a message to a content script to play audio
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        var activeTab = tabs[0];
+        chrome.tabs.sendMessage(activeTab.id, {action: "play_audio", audioContent: audio_string});
+    });
 }
+
 
 function google_cloud_tts_error_handler(err) {
     try {
-        alert("Error from Google Cloud Text-to-Speech API\nCode: " + err.error.code + "\nMessage: " + err.error.message + "\nPlease check the options.");
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: '/images/icon128.png',
+            title: 'Speechy',
+            message: "Error from Google Cloud Text-to-Speech API\nCode: " + err.error.code + "\nMessage: " + err.error.message + "\nPlease check the options."
+        });
+
     } catch (e) {
-        alert("Something went wrong. Please check settings.");
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: '/images/icon128.png',
+            title: 'Speechy',
+            message: "Something went wrong. Please check settings."
+        });
     }
     console.error(err);
 }

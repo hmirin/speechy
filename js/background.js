@@ -90,6 +90,8 @@ function to_voice(text) {
         var chosen_provider_options = items.chosen_provider_options;
         if (api_provider == "Google") {
             google_cloud_tts(text, chosen_provider_options, api_key);
+        } else if (api_provider == "OpenAI") {
+            openai_tts(text, chosen_provider_options, api_key);
         } else {
             chrome.notifications.create({
                 type: 'basic',
@@ -156,6 +158,63 @@ function google_cloud_tts_error_handler(err) {
     }
     console.error(err);
 }
+
+function openai_tts(text, chosen_provider_options, api_key) {
+    var endpoint = "https://api.openai.com/v1/audio/speech";
+    var voice = chosen_provider_options.voice || "alloy"; // Default voice if not specified
+    fetch(endpoint, {
+        method: "POST",
+        headers: {
+            "Authorization": "Bearer " + api_key,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            "model": "tts-1",
+            "input": text,
+            "voice": "alloy"
+            // "voice": voice
+        }),
+    })
+    .then((res) => {
+        if (res.ok) {
+            // Assuming playvoice function can handle base64 encoded MP3 audio
+            res.blob().then((blob) => {
+                var reader = new FileReader();
+                reader.readAsDataURL(blob); 
+                reader.onloadend = function() {
+                    var base64data = reader.result;                
+                    playvoice(base64data.split(',')[1]); // Pass base64 encoded audio string
+                };
+            });
+        } else {
+            res.json().then(openai_tts_error_handler);
+        }
+    })
+    .catch(function (err) {
+        console.error(err);
+        alert("Network error, see console.")
+    });
+}
+
+function openai_tts_error_handler(err) {
+    try {
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: '/images/icon128.png',
+            title: 'Speechy',
+            message: "Error from OpenAI Text-to-Speech API\nMessage: " + err.message + "\nPlease check the options."
+        });
+    } catch (e) {
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: '/images/icon128.png',
+            title: 'Speechy',
+            message: "Something went wrong. Please check settings."
+        });
+    }
+    console.error(err);
+}
+
 
 chrome.runtime.onInstalled.addListener(function (details) {
     if (details.reason == "install") {

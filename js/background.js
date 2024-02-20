@@ -81,13 +81,26 @@ function getSelectionText() {
 
 function to_voice(text) {
     chrome.storage.sync.get({
-        api_provider: "",
-        apikey: "",
-        chosen_provider_options: {}
+        api_provider: "Google",
+        openai_apikey: "",
+        google_apikey: "",
+        openai_voice: "alloy",
+        google_voice: "en-US-Wavenet-D",
+        google_speed: 1,
     }, function (items) {
         var api_provider = items.api_provider;
-        var api_key = items.apikey;
-        var chosen_provider_options = items.chosen_provider_options;
+        if (api_provider == "Google") {
+            chosen_provider_options = {
+                voice: items.google_voice,
+                speed: items.google_speed
+            };
+            api_key = items.google_apikey;
+        } else if (api_provider == "OpenAI") {
+            chosen_provider_options = {
+                voice: items.openai_voice
+            };
+            api_key = items.openai_apikey;
+        }
         if (api_provider == "Google") {
             google_cloud_tts(text, chosen_provider_options, api_key);
         } else if (api_provider == "OpenAI") {
@@ -172,18 +185,16 @@ function openai_tts(text, chosen_provider_options, api_key) {
             "model": "tts-1",
             "input": text,
             "voice": "alloy"
-            // "voice": voice
         }),
     })
     .then((res) => {
         if (res.ok) {
-            // Assuming playvoice function can handle base64 encoded MP3 audio
             res.blob().then((blob) => {
                 var reader = new FileReader();
                 reader.readAsDataURL(blob); 
                 reader.onloadend = function() {
-                    var base64data = reader.result;                
-                    playvoice(base64data.split(',')[1]); // Pass base64 encoded audio string
+                    var base64data = reader.result;
+                    playvoice(base64data.split(',')[1]);
                 };
             });
         } else {

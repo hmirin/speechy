@@ -26,6 +26,7 @@ layout: pages
     - We recommend you to use the voice named with "Wavenet".
   - For OpenAI Text-to-Speech API:
     - All voices are multi-lingual. Choose voice you like.
+    - However, non-English voices are pretty immature. We recommend you to use Google Cloud Text-to-Speech API for non-English text if available for your language.
 
 ## Usage
 

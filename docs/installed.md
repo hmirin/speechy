@@ -3,7 +3,10 @@ layout: pages
 ---
 
 # Speechy: Thank you for installation/update!
+
 [See changes from the previous version!](https://github.com/hmirin/speechy/releases)
+
+❗ **Please restart your browser to use Speechy after installation or update. As Speechy cannot be used tabs opened before installation or update.**
 
 ## Setup
 
@@ -20,13 +23,14 @@ layout: pages
 2. Click this extension's icon on the address bar and choose API and add API key and push save.
     ![Screenshot_1](/images/screenshot_1.png)
 3. Choose voice you like.
-  - For Google Cloud Text-to-Speech API:
-    - Choose voice whose language matches the text. 
-      - en-US-Wavenet-D is for en-US and the speaker ID is D.
-    - We recommend you to use the voice named with "Wavenet".
-  - For OpenAI Text-to-Speech API:
-    - All voices are multi-lingual. Choose voice you like.
-    - However, non-English voices are pretty immature. We recommend you to use Google Cloud Text-to-Speech API for non-English text if available for your language.
+
+- For Google Cloud Text-to-Speech API:
+  - Choose voice whose language matches the text.
+    - en-US-Wavenet-D is for en-US and the speaker ID is D.
+  - We recommend you to use the voice named with "Wavenet".
+- For OpenAI Text-to-Speech API:
+  - All voices are multi-lingual. Choose voice you like.
+  - However, non-English voices are pretty immature. We recommend you to use Google Cloud Text-to-Speech API for non-English text if available for your language.
 
 ## Usage
 

@@ -7,6 +7,10 @@ layout: default
 Speechy provides an easy interface for **paid** Text-to-Speech (TTS) APIs.
 Select text and click Speechy from the context menu. That's it. Your browser reads the text aloud with a high-quality voice compared to your OS's default TTS engine or free online APIs.
 
+We currently support the following APIs:
+- Google Cloud Text-to-Speech API
+- OpenAI Text-to-Speech API
+
 ![Screenshot_2](/images/screenshot_2.png)
 
 # Paid API?

@@ -6,14 +6,17 @@ See [project page](https://hmirin.github.io/speechy/).
 ## Features
 
 Available
+
 - Read selected text aloud from context menu
 - [Google] Change voice speed from extension icon menu
 
 Planned
+
 - Stop voice from extension menu.
 
 ## Supported APIs
 
 Available
+
 - Google Cloud Text-to-Speech API
 - OpenAI Text-to-Speech API

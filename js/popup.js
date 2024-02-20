@@ -1,128 +1,115 @@
-var default_api_provider = "Google";
+// Options are given as follows:
+// api_provider: "Google" or "OpenAI"
+// openai_apikey: string or ""
+// google_apikey: string or ""
+// openai_voice: string || "alloy"
+// google_voice: string || "en-US-Wavenet-D"
+// google_speed: number || 1
+// chosen_provider_options (deprecated): that has the following keys:
+//     api_key (deprecated): string || "" (If this is set, the value must be transferred to google_apikey
+//     speed (deprecated): number || 1 (If this is set, the value must be transferred to google_speed)
+//     voice (deprecated): string || "en-US-Wavenet-D" (If this is set, the value must be transferred to google_voice)
 
-function save_api_options() {
-    var api_provider = document.getElementById('api_provider').value;
-    var apikey = document.getElementById('apikey').value;
-    var chosen_provider_options = get_chosen_provider_options(api_provider);
-    chrome.storage.sync.set({
-        api_provider: api_provider,
-        apikey: apikey,
-        chosen_provider_options: chosen_provider_options
-    }, function () {
-        enable_api_edit_mode(false)
-        show_provider_options(api_provider, true);
-    });
-}
-
-document.getElementById('save_api_options').addEventListener('click', save_api_options);
-
-function save_provider_options() {
-    var api_provider = document.getElementById('api_provider').value;
-    var chosen_provider_options = get_chosen_provider_options(api_provider);
-    chrome.storage.sync.set({
-        chosen_provider_options: chosen_provider_options
-    }, function () {
-    });
-}
-
-var divsToMark = document.getElementsByClassName("provider_settings_form_inputs");
-for (var i = 0; i < divsToMark.length; i++) {
-    divsToMark[i].addEventListener('change', save_provider_options);
-}
-
-
+// First, restore the options from storage and assigned to the form elements.
+// If deprecated options are set, transfer the values to the new options.
+// On that occasion, save the options to the storage again and remove the deprecated options.
 function restore_options() {
-    // Use default value color = 'red' and likesColor = true.
     chrome.storage.sync.get({
-        api_provider: default_api_provider,
-        apikey: "",
+        api_provider: "Google",
+        openai_apikey: "",
+        google_apikey: "",
+        openai_voice: "alloy",
+        google_voice: "en-US-Wavenet-D",
+        google_speed: 1,
         chosen_provider_options: {}
     }, function (items) {
-        document.getElementById('api_provider').value = items.api_provider;
-        document.getElementById('apikey').value = items.apikey;
-        if (items.apikey != "") {
-            enable_api_edit_mode(false);
-            set_chosen_provider_options(items.api_provider, items.chosen_provider_options);
-            show_provider_options(items.api_provider, true);
+        // check if deprecated options is not {}
+        if (items.chosen_provider_options!== void 0) {
+            if (items.chosen_provider_options.api_key !== void 0) {
+                items.google_apikey = items.chosen_provider_options.api_key;
+            }
+            if (items.chosen_provider_options.speed !== void 0) {
+                items.google_speed = items.chosen_provider_options.speed;
+            }
+            if (items.chosen_provider_options.voice !== void 0) {
+                items.google_voice = items.chosen_provider_options.voice;
+            }
+            items.chosen_provider_options = {};
+            chrome.storage.sync.set({
+                api_provider: items.api_provider,
+                openai_apikey: items.openai_apikey,
+                google_apikey: items.google_apikey,
+                openai_voice: items.openai_voice,
+                google_voice: items.google_voice,
+                google_speed: items.google_speed,
+                chosen_provider_options: {}
+            }, function () {
+                delete items.chosen_provider_options;
+            });
         }
+        // set the values to the form elements
+        document.getElementById(items.api_provider.toLowerCase()).checked = true;
+        document.getElementById('openai_apikey').value = items.openai_apikey;
+        document.getElementById('google_apikey').value = items.google_apikey;
+        document.getElementById('openai_voice').value = items.openai_voice;
+        document.getElementById('google_voice').value = items.google_voice;
+        document.getElementById('google_speed').value = items.google_speed;
+        sync_speed(items.google_speed);
+        switch_api_options(items.api_provider);
+    }
+    );
+}
+document.addEventListener('DOMContentLoaded', restore_options);
+
+function save_api_options() {
+    chrome.storage.sync.set({
+        api_provider: document.querySelector('input[name="api_provider"]:checked').value,
+        openai_apikey: document.getElementById('openai_apikey').value,
+        google_apikey: document.getElementById('google_apikey').value,
+        openai_voice: document.getElementById('openai_voice').value,
+        google_voice: document.getElementById('google_voice').value,
+        google_speed: document.getElementById('google_speed').innerHTML
     });
 }
 
-document.addEventListener('DOMContentLoaded', restore_options);
-
-function get_chosen_provider_options(api_provider) {
-    if (api_provider == "Google") {
-        return {
-            voice: document.getElementById("voice").value,
-            speed: document.getElementById("speed").value
+function switch_api_options(api_provider) {
+    // set display:none to all the child elements recursively with the class name of the api_provider (lowercase)
+    // and set display:block to the elements with the class name of the api_provider (lowercase)
+    var api_providers = ["Google", "OpenAI"];
+    for (var i = 0; i < api_providers.length; i++) {
+        var provider = api_providers[i];
+        var elements = document.getElementsByClassName(provider.toLowerCase());
+        for (var j = 0; j < elements.length; j++) {
+            console.log(provider, api_provider);
+            elements[j].style.display = (provider === api_provider) ? "block" : "none";
         }
     }
 }
 
-function set_chosen_provider_options(api_provider, chosen_provider_options) {
-    if (api_provider == "Google") {
-        document.getElementById("voice").value = chosen_provider_options.voice;
-        sync_speed(chosen_provider_options.speed)
-    }
-}
-
-function change_api_key() {
-    enable_api_edit_mode(true);
-}
-
-document.getElementById('change_api_key').addEventListener('click', change_api_key);
-
-function enable_api_edit_mode(status) {
-    if (status == true) {
-        document.getElementById('change_api_key').style.display = "none";
-        document.getElementById('save_api_options').style.display = "";
-        var divsToHide = document.getElementsByClassName("api_settings_form_inputs"); //divsToHide is an array
-        for (var i = 0; i < divsToHide.length; i++) {
-            divsToHide[i].removeAttribute("disabled");
-        }
-    } else {
-        document.getElementById('change_api_key').style.display = "";
-        document.getElementById('save_api_options').style.display = "none";
-        var divsToHide = document.getElementsByClassName("api_settings_form_inputs"); //divsToHide is an array
-        for (var i = 0; i < divsToHide.length; i++) {
-            divsToHide[i].disabled = "disabled";
-        }
-    }
-}
-
-function show_provider_options(api_provider, status) {
-    if (status == true) {
-        if (api_provider == "Google") {
-            document.getElementById('provider_settings_form').style.display = "";
-        }
-    } else {
-        if (api_provider == "Google") {
-            document.getElementById('provider_settings_form').style.display = "none";
-        }
-    }
-}
-
-
+// sync_speed is called when the input element with the id of "google_speed" is changed
 function sync_speed(value) {
-    if (value === void 0 || !isFinite(value)) {
-        value = document.getElementById("speed").value;
-    } else if (value < 0.25 || value > 4) {
-        value = 1;
-    }
+    value = document.getElementById("google_speed").value;
     document.getElementById("speedometer").innerHTML = value;
-    document.getElementById("speed").value = value;
 }
+
 
 document.addEventListener('DOMContentLoaded', function () {
-    document.getElementById("speed").addEventListener("change", sync_speed);
-}
-)
-
-document.addEventListener('DOMContentLoaded', function () {
-    document.getElementById("help_link").addEventListener("click", openIndex);
-}
-)
-
-function openIndex() {
-    chrome.tabs.create({ active: true, url: "https://hmirin.github.io/speechy/installed#usage" });
-}
+    document.getElementById("google_speed").addEventListener("change", function() {
+        sync_speed(this.value);
+    });    
+    document.getElementById("help_link").addEventListener("click", function() {
+        chrome.tabs.create({ active: true, url: "https://hmirin.github.io/speechy/installed#usage" });
+    });
+    var radios = document.querySelectorAll('input[name="api_provider"]');
+    for (var i = 0; i < radios.length; i++) {
+        radios[i].addEventListener('change', function() {
+            save_api_options();
+            switch_api_options(this.value);
+        });
+    }
+    document.getElementById('openai_apikey').addEventListener('input', save_api_options);
+    document.getElementById('google_apikey').addEventListener('input', save_api_options);
+    document.getElementById('openai_voice').addEventListener('input', save_api_options);
+    document.getElementById('google_voice').addEventListener('input', save_api_options);
+    document.getElementById('google_speed').addEventListener('input', save_api_options);
+});

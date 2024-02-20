@@ -81,15 +81,30 @@ function getSelectionText() {
 
 function to_voice(text) {
     chrome.storage.sync.get({
-        api_provider: "",
-        apikey: "",
-        chosen_provider_options: {}
+        api_provider: "Google",
+        openai_apikey: "",
+        google_apikey: "",
+        openai_voice: "alloy",
+        google_voice: "en-US-Wavenet-D",
+        google_speed: 1,
     }, function (items) {
         var api_provider = items.api_provider;
-        var api_key = items.apikey;
-        var chosen_provider_options = items.chosen_provider_options;
+        if (api_provider == "Google") {
+            chosen_provider_options = {
+                voice: items.google_voice,
+                speed: items.google_speed
+            };
+            api_key = items.google_apikey;
+        } else if (api_provider == "OpenAI") {
+            chosen_provider_options = {
+                voice: items.openai_voice
+            };
+            api_key = items.openai_apikey;
+        }
         if (api_provider == "Google") {
             google_cloud_tts(text, chosen_provider_options, api_key);
+        } else if (api_provider == "OpenAI") {
+            openai_tts(text, chosen_provider_options, api_key);
         } else {
             chrome.notifications.create({
                 type: 'basic',
@@ -156,6 +171,61 @@ function google_cloud_tts_error_handler(err) {
     }
     console.error(err);
 }
+
+function openai_tts(text, chosen_provider_options, api_key) {
+    var endpoint = "https://api.openai.com/v1/audio/speech";
+    var voice = chosen_provider_options.voice || "alloy"; // Default voice if not specified
+    fetch(endpoint, {
+        method: "POST",
+        headers: {
+            "Authorization": "Bearer " + api_key,
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            "model": "tts-1",
+            "input": text,
+            "voice": "alloy"
+        }),
+    })
+    .then((res) => {
+        if (res.ok) {
+            res.blob().then((blob) => {
+                var reader = new FileReader();
+                reader.readAsDataURL(blob); 
+                reader.onloadend = function() {
+                    var base64data = reader.result;
+                    playvoice(base64data.split(',')[1]);
+                };
+            });
+        } else {
+            res.json().then(openai_tts_error_handler);
+        }
+    })
+    .catch(function (err) {
+        console.error(err);
+        alert("Network error, see console.")
+    });
+}
+
+function openai_tts_error_handler(err) {
+    try {
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: '/images/icon128.png',
+            title: 'Speechy',
+            message: "Error from OpenAI Text-to-Speech API\nMessage: " + err.message + "\nPlease check the options."
+        });
+    } catch (e) {
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: '/images/icon128.png',
+            title: 'Speechy',
+            message: "Something went wrong. Please check settings."
+        });
+    }
+    console.error(err);
+}
+
 
 chrome.runtime.onInstalled.addListener(function (details) {
     if (details.reason == "install") {

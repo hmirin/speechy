@@ -184,7 +184,7 @@ function openai_tts(text, chosen_provider_options, api_key) {
         body: JSON.stringify({
             "model": "tts-1",
             "input": text,
-            "voice": "alloy"
+            voice
         }),
     })
     .then((res) => {

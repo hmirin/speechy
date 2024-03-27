@@ -8,7 +8,7 @@ layout: pages
 
 Major updates: Now you can use OpenAI's TTS! It's very natural for English. Please try it out.
 
-❗ **Please restart your browser to use Speechy after installation or update. As Speechy cannot be used tabs opened before installation or update.**
+❗ **Please restart your browser to use Speechy after installation or update. Speechy cannot be used in tabs that were opened before installation or update because of Chrome restrictions.**
 
 ## Setup
 
@@ -16,23 +16,23 @@ Major updates: Now you can use OpenAI's TTS! It's very natural for English. Plea
     - [Google Cloud Text-to-Speech API](https://cloud.google.com/text-to-speech/)
         - Description: This API provides WaveNet (Deep Learning based high quality voice synthesis algorithm) voice. Highly recommended!
         - Follow the instruction on [this link](https://support.google.com/cloud/answer/6158862) to get your API key.
-            - We recommend you to restrict the API key only to Cloud Text-to-speech API for security.
+            - For security, we recommend restricting the API key to only the Cloud Text-to-Speech API.
     - [OpenAI Text-to-Speech API](https://platform.openai.com/docs/guides/text-to-speech)
         - Description: This API provides high quality voice synthesis algorithm. It's also good.
         - Follow the instruction on [this link](https://www.howtogeek.com/885918/how-to-get-an-openai-api-key/) to get your API key.
-            - We recommend you to restrict the API key only to Model capabilities for security.
+            - For security, we recommend restricting the API key to only Model capabilities.
 
 2. Click this extension's icon on the address bar and choose API and add API key and push save.
     ![Screenshot_1](/images/screenshot_1.png)
-3. Choose voice you like.
+3. Choose the voice you like.
 
 - For Google Cloud Text-to-Speech API:
-  - Choose voice whose language matches the text.
-    - en-US-Wavenet-D is for en-US and the speaker ID is D.
+  - Choose a voice whose language matches the text.
+    - For example, en-US-Wavenet-D is for en-US and the speaker ID is D.
   - We recommend you to use the voice named with "Wavenet".
 - For OpenAI Text-to-Speech API:
-  - All voices are multi-lingual. Choose voice you like.
-  - However, non-English voices are pretty immature. We recommend you to use Google Cloud Text-to-Speech API for non-English text if available for your language.
+  - All voices are multi-lingual. You don't need to choose a lanugage.
+  - However, the quality of the voices for non-English texts is not as advanced. We recommend using the Google Cloud Text-to-Speech API for non-English text if it is available for your language.
 
 ## Usage
 

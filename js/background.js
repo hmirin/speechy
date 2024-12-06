@@ -85,6 +85,7 @@ function to_voice(text) {
         openai_apikey: "",
         google_apikey: "",
         openai_voice: "alloy",
+        openai_model: "tts-1",
         google_voice: "en-US-Wavenet-D",
         google_speed: 1,
     }, function (items) {
@@ -97,7 +98,8 @@ function to_voice(text) {
             api_key = items.google_apikey;
         } else if (api_provider == "OpenAI") {
             chosen_provider_options = {
-                voice: items.openai_voice
+                voice: items.openai_voice,
+                model: items.openai_model
             };
             api_key = items.openai_apikey;
         }
@@ -110,9 +112,9 @@ function to_voice(text) {
                 type: 'basic',
                 iconUrl: '/images/icon128.png',
                 title: 'Speechy',
-                message: "Please select a API provider and setup your API key."
+                message: "Please select an API provider and setup your API key."
             });
-        };
+        }
     });
 }
 
@@ -174,7 +176,8 @@ function google_cloud_tts_error_handler(err) {
 
 function openai_tts(text, chosen_provider_options, api_key) {
     var endpoint = "https://api.openai.com/v1/audio/speech";
-    var voice = chosen_provider_options.voice || "alloy"; // Default voice if not specified
+    var voice = chosen_provider_options.voice || "alloy";
+    var model = chosen_provider_options.model || "tts-1";
     fetch(endpoint, {
         method: "POST",
         headers: {
@@ -182,7 +185,7 @@ function openai_tts(text, chosen_provider_options, api_key) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            "model": "tts-1",
+            "model": model,
             "input": text,
             voice
         }),

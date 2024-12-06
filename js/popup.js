@@ -3,6 +3,7 @@
 // openai_apikey: string or ""
 // google_apikey: string or ""
 // openai_voice: string || "alloy"
+// openai_model: string || "tts-1"
 // google_voice: string || "en-US-Wavenet-D"
 // google_speed: number || 1
 // chosen_provider_options (deprecated): that has the following keys:
@@ -10,15 +11,13 @@
 //     speed (deprecated): number || 1 (If this is set, the value must be transferred to google_speed)
 //     voice (deprecated): string || "en-US-Wavenet-D" (If this is set, the value must be transferred to google_voice)
 
-// First, restore the options from storage and assigned to the form elements.
-// If deprecated options are set, transfer the values to the new options.
-// On that occasion, save the options to the storage again and remove the deprecated options.
 function restore_options() {
     chrome.storage.sync.get({
         api_provider: "Google",
         openai_apikey: "",
         google_apikey: "",
         openai_voice: "alloy",
+        openai_model: "tts-1",
         google_voice: "en-US-Wavenet-D",
         google_speed: 1,
         chosen_provider_options: {}
@@ -52,12 +51,12 @@ function restore_options() {
         document.getElementById('openai_apikey').value = items.openai_apikey;
         document.getElementById('google_apikey').value = items.google_apikey;
         document.getElementById('openai_voice').value = items.openai_voice;
+        document.getElementById('openai_model').value = items.openai_model;
         document.getElementById('google_voice').value = items.google_voice;
         document.getElementById('google_speed').value = items.google_speed;
         sync_speed(items.google_speed);
         switch_api_options(items.api_provider);
-    }
-    );
+    });
 }
 document.addEventListener('DOMContentLoaded', restore_options);
 
@@ -67,6 +66,7 @@ function save_api_options() {
         openai_apikey: document.getElementById('openai_apikey').value,
         google_apikey: document.getElementById('google_apikey').value,
         openai_voice: document.getElementById('openai_voice').value,
+        openai_model: document.getElementById('openai_model').value,
         google_voice: document.getElementById('google_voice').value,
         google_speed: document.getElementById('google_speed').innerHTML
     });
@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
             switch_api_options(this.value);
         });
     }
+    document.getElementById('openai_model').addEventListener('input', save_api_options);
     document.getElementById('openai_apikey').addEventListener('input', save_api_options);
     document.getElementById('google_apikey').addEventListener('input', save_api_options);
     document.getElementById('openai_voice').addEventListener('input', save_api_options);

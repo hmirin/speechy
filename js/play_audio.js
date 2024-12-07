@@ -1,3 +1,11 @@
+const DEBUG = true; // Set to true to enable logging
+
+function log(message, ...optionalParams) {
+  if (DEBUG) {
+    console.log(`[Speechy] ${message}`, ...optionalParams);
+  }
+}
+
 class SpeechyPlayer {
   constructor() {
     this.reset();
@@ -41,10 +49,10 @@ class SpeechyPlayer {
   }
 
   async initialize(playbackId) {
-    console.log("Initializing playback:", playbackId);
+    log("Initializing playback:", playbackId);
 
     this.providerType = playbackId.split("-")[0];
-    console.log("Provider type:", this.providerType);
+    log("Provider type:", this.providerType);
 
     // If already initializing, wait for it
     if (this.initializationPromise) {
@@ -66,12 +74,12 @@ class SpeechyPlayer {
 
           // Add event listeners
           this.audio.addEventListener("canplay", () => {
-            console.log("Audio canplay event");
+            log("Audio canplay event");
             this.checkAndPlay();
           });
 
           this.audio.addEventListener("playing", () => {
-            console.log("Audio playing event");
+            log("Audio playing event");
             this.hasStartedPlaying = true;
           });
 
@@ -89,12 +97,12 @@ class SpeechyPlayer {
 
         // Add event listeners
         this.audio.addEventListener("canplay", () => {
-          console.log("Audio canplay event");
+          log("Audio canplay event");
           this.checkAndPlay();
         });
 
         this.audio.addEventListener("playing", () => {
-          console.log("Audio playing event");
+          log("Audio playing event");
           this.hasStartedPlaying = true;
         });
 
@@ -104,7 +112,7 @@ class SpeechyPlayer {
 
         // Create and set source
         const url = URL.createObjectURL(this.mediaSource);
-        console.log("Created URL:", url);
+        log("Created URL:", url);
         this.audio.src = url;
 
         // Wait for source open
@@ -116,7 +124,7 @@ class SpeechyPlayer {
           this.mediaSource.addEventListener("sourceopen", handleOpen);
         });
 
-        console.log("MediaSource opened");
+        log("MediaSource opened");
         this.isInitialized = true;
       } catch (error) {
         console.error("Initialization error:", error);
@@ -156,7 +164,7 @@ class SpeechyPlayer {
       if (!this.sourceBuffer && this.mediaSource.readyState === "open") {
         this.sourceBuffer = this.mediaSource.addSourceBuffer("audio/mpeg");
         this.sourceBuffer.addEventListener("updateend", () => {
-          console.log("SourceBuffer updateend event");
+          log("SourceBuffer updateend event");
           if (!this.isProcessing) {
             this.processQueue();
           }
@@ -176,9 +184,9 @@ class SpeechyPlayer {
       return;
 
     try {
-      console.log("Attempting playback");
+      log("Attempting playback");
       await this.audio.play();
-      console.log("Playback started successfully");
+      log("Playback started successfully");
     } catch (error) {
       console.warn("Playback attempt failed:", error);
       if (!this.hasStartedPlaying) {
@@ -226,7 +234,7 @@ class SpeechyPlayer {
   }
 
   async cleanup() {
-    console.log("Starting cleanup");
+    log("Starting cleanup");
 
     if (this.audio) {
       try {
@@ -244,7 +252,7 @@ class SpeechyPlayer {
     }
 
     this.reset();
-    console.log("Cleanup completed");
+    log("Cleanup completed");
   }
 }
 

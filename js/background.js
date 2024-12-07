@@ -262,7 +262,7 @@ class SpeechyService {
         currentWindow: true,
       });
       if (!tab) {
-        console.error("No active tab found");
+        console.error("[Speecby] No active tab found");
         return;
       }
 

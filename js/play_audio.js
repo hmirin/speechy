@@ -1,4 +1,3 @@
-// play_audio.js
 class SpeechyPlayer {
     constructor() {
         this.reset();
@@ -14,7 +13,28 @@ class SpeechyPlayer {
         this.currentPlaybackId = null;
         this.hasStartedPlaying = false;
         this.totalBytesAppended = 0;
-        this.playAttempts = 0;
+        this.initializationPromise = null;
+    }
+
+    async waitForSourceOpen(mediaSource) {
+        if (mediaSource.readyState === 'open') return;
+        
+        await new Promise((resolve, reject) => {
+            const handleOpen = () => {
+                mediaSource.removeEventListener('sourceopen', handleOpen);
+                mediaSource.removeEventListener('error', handleError);
+                resolve();
+            };
+            
+            const handleError = (error) => {
+                mediaSource.removeEventListener('sourceopen', handleOpen);
+                mediaSource.removeEventListener('error', handleError);
+                reject(error);
+            };
+
+            mediaSource.addEventListener('sourceopen', handleOpen);
+            mediaSource.addEventListener('error', handleError);
+        });
     }
 
     async initialize(playbackId) {
@@ -23,108 +43,87 @@ class SpeechyPlayer {
         this.providerType = playbackId.split('-')[0];
         console.log('Provider type:', this.providerType);
         
-        if (this.currentPlaybackId !== playbackId) {
-            console.log('New playback ID, cleaning up previous playback');
-            await this.cleanup();
+        // If already initializing, wait for it
+        if (this.initializationPromise) {
+            await this.initializationPromise;
         }
 
-        return new Promise((resolve, reject) => {
+        this.initializationPromise = (async () => {
             try {
+                if (this.currentPlaybackId !== playbackId) {
+                    await this.cleanup();
+                }
+
                 this.currentPlaybackId = playbackId;
                 this.mediaSource = new MediaSource();
                 this.audio = new Audio();
                 
-                // Set audio properties
-                this.audio.autoplay = true;
+                // Configure audio
                 this.audio.preload = 'auto';
                 
                 // Add event listeners
-                this.audio.addEventListener('loadstart', () => console.log('Audio loadstart'));
-                this.audio.addEventListener('loadeddata', () => console.log('Audio loadeddata'));
                 this.audio.addEventListener('canplay', () => {
                     console.log('Audio canplay event');
-                    this.tryPlay();
-                });
-                this.audio.addEventListener('play', () => console.log('Audio play event'));
-                this.audio.addEventListener('playing', () => {
-                    console.log('Audio playing event');
-                    this.hasStartedPlaying = true;
-                });
-                this.audio.addEventListener('waiting', () => console.log('Audio waiting'));
-                this.audio.addEventListener('error', (e) => {
-                    console.error('Audio error:', this.audio.error);
-                });
-
-                // Add state change logging
-                this.audio.addEventListener('readystatechange', () => {
-                    console.log('Audio readyState:', this.audio.readyState);
+                    this.checkAndPlay();
                 });
                 
-                const handleSourceOpen = () => {
-                    console.log('MediaSource opened');
-                    this.isInitialized = true;
-                    this.mediaSource.removeEventListener('sourceopen', handleSourceOpen);
-                    resolve();
-                };
+                this.audio.addEventListener('loadeddata', () => {
+                    console.log('Audio loadeddata event');
+                    this.checkAndPlay();
+                });
 
-                this.mediaSource.addEventListener('sourceopen', handleSourceOpen);
+                this.audio.addEventListener('play', () => {
+                    console.log('Audio play event');
+                    this.hasStartedPlaying = true;
+                });
+
+                this.audio.addEventListener('playing', () => console.log('Audio playing event'));
+                this.audio.addEventListener('waiting', () => console.log('Audio waiting event'));
+                this.audio.addEventListener('error', (e) => console.error('Audio error:', this.audio.error));
+
+                // Create and set source
                 const url = URL.createObjectURL(this.mediaSource);
                 console.log('Created URL:', url);
                 this.audio.src = url;
+
+                // Wait for source to open
+                await this.waitForSourceOpen(this.mediaSource);
+                console.log('MediaSource opened');
+                
+                this.isInitialized = true;
             } catch (error) {
                 console.error('Initialization error:', error);
-                reject(error);
+                throw error;
             }
-        });
+        })();
+
+        await this.initializationPromise;
+        this.initializationPromise = null;
     }
 
-    async tryPlay() {
-        if (!this.audio || this.hasStartedPlaying) return;
-        
-        if (this.playAttempts >= 5) {
-            console.log('Maximum play attempts reached, resetting');
-            this.playAttempts = 0;
-            return;
-        }
+    async checkAndPlay() {
+        if (!this.audio || this.hasStartedPlaying || this.audio.readyState < 2) return;
 
-        this.playAttempts++;
-        
         try {
             console.log('Attempting playback:', {
                 readyState: this.audio.readyState,
-                buffered: this.formatTimeRanges(this.audio.buffered),
-                attempt: this.playAttempts,
+                currentTime: this.audio.currentTime,
+                duration: this.audio.duration,
                 bytesAppended: this.totalBytesAppended
             });
-            
+
             await this.audio.play();
             console.log('Playback started successfully');
-            this.hasStartedPlaying = true;
         } catch (error) {
-            console.error('Playback attempt failed:', error);
-            // Retry after a delay if we have enough data
+            console.warn('Playback attempt failed:', error);
+            // Schedule retry if we have enough data
             if (this.totalBytesAppended > 32768) {
-                setTimeout(() => this.tryPlay(), 500);
+                setTimeout(() => this.checkAndPlay(), 100);
             }
         }
     }
 
-    formatTimeRanges(timeRanges) {
-        const ranges = [];
-        for (let i = 0; i < timeRanges.length; i++) {
-            ranges.push([timeRanges.start(i), timeRanges.end(i)]);
-        }
-        return ranges;
-    }
-
     async appendChunk(chunk, isLastChunk = false, playbackId) {
-        console.log('Appending chunk:', {
-            isLastChunk,
-            playbackId,
-            chunkSize: chunk.length,
-            totalBytes: this.totalBytesAppended
-        });
-        
         try {
             if (!this.isInitialized || this.currentPlaybackId !== playbackId) {
                 await this.initialize(playbackId);
@@ -137,13 +136,11 @@ class SpeechyPlayer {
                 this.sourceBuffer = this.mediaSource.addSourceBuffer(mimeType);
                 this.sourceBuffer.addEventListener('updateend', () => {
                     console.log('SourceBuffer updateend event');
-                    // Try to play after enough data is buffered
-                    if (this.totalBytesAppended > 32768 && !this.hasStartedPlaying) {
-                        this.tryPlay();
-                    }
                     if (!this.isProcessing) {
                         this.processQueue();
                     }
+                    // Try to play after appending data
+                    this.checkAndPlay();
                 });
             }
 
@@ -157,48 +154,58 @@ class SpeechyPlayer {
     }
 
     async processQueue() {
-        if (this.isProcessing || !this.sourceBuffer || !this.queue.length) {
-            return;
-        }
+        if (this.isProcessing || !this.sourceBuffer || !this.queue.length) return;
 
         this.isProcessing = true;
+        const errors = [];
 
         try {
             while (this.queue.length > 0) {
+                const { chunk, isLastChunk } = this.queue[0];
+
                 if (this.sourceBuffer.updating) {
                     await new Promise(resolve => {
                         this.sourceBuffer.addEventListener('updateend', resolve, { once: true });
                     });
                 }
 
-                const { chunk, isLastChunk } = this.queue.shift();
+                this.queue.shift();
                 const data = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
                 
-                this.sourceBuffer.appendBuffer(data);
-                this.totalBytesAppended += data.length;
-                
-                // Try to play after accumulating enough data
-                if (this.totalBytesAppended > 32768 && !this.hasStartedPlaying) {
-                    await this.tryPlay();
-                }
+                try {
+                    this.sourceBuffer.appendBuffer(data);
+                    this.totalBytesAppended += data.length;
+                    
+                    await new Promise((resolve, reject) => {
+                        const handleUpdate = () => {
+                            this.sourceBuffer.removeEventListener('updateend', handleUpdate);
+                            this.sourceBuffer.removeEventListener('error', handleError);
+                            resolve();
+                        };
+                        
+                        const handleError = (event) => {
+                            this.sourceBuffer.removeEventListener('updateend', handleUpdate);
+                            this.sourceBuffer.removeEventListener('error', handleError);
+                            reject(event);
+                        };
+                        
+                        this.sourceBuffer.addEventListener('updateend', handleUpdate);
+                        this.sourceBuffer.addEventListener('error', handleError);
+                    });
 
-                await new Promise(resolve => {
-                    this.sourceBuffer.addEventListener('updateend', resolve, { once: true });
-                });
-
-                if (isLastChunk && !this.sourceBuffer.updating) {
-                    console.log('Processing last chunk, ending stream');
-                    try {
+                    if (isLastChunk && this.mediaSource.readyState === 'open') {
                         this.mediaSource.endOfStream();
-                    } catch (error) {
-                        console.error('Error ending stream:', error);
                     }
+                } catch (error) {
+                    errors.push(error);
+                    console.error('Error processing chunk:', error);
                 }
             }
-        } catch (error) {
-            console.error('Error in processQueue:', error);
         } finally {
             this.isProcessing = false;
+            if (errors.length > 0) {
+                throw new Error('Errors occurred while processing queue');
+            }
         }
     }
 
@@ -207,13 +214,23 @@ class SpeechyPlayer {
         
         if (this.audio) {
             try {
-                await this.audio.pause();
+                this.audio.pause();
                 this.audio.currentTime = 0;
+                
                 if (this.audio.src) {
                     URL.revokeObjectURL(this.audio.src);
                     this.audio.removeAttribute('src');
-                    this.audio.load();
                 }
+                
+                // Wait for the audio element to fully reset
+                await new Promise(resolve => {
+                    const handleEmptied = () => {
+                        this.audio.removeEventListener('emptied', handleEmptied);
+                        resolve();
+                    };
+                    this.audio.addEventListener('emptied', handleEmptied);
+                    this.audio.load();
+                });
             } catch (error) {
                 console.error('Error cleaning up audio:', error);
             }

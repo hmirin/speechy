@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Speechy",
   "version": "0.2.2",
-  "description": "Wrapper for Paid High Quality Text-to-Speech (TTS) APIs like Google's Wavenet TTS. To use this extension, you need your API key.",
+  "description": "Wrapper for Paid High Quality Text-to-Speech (TTS) APIs like Google's Wavenet TTS.",
   "permissions": [
     "activeTab",
     "contextMenus",

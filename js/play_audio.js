@@ -14,27 +14,21 @@ class SpeechyPlayer {
         this.hasStartedPlaying = false;
         this.totalBytesAppended = 0;
         this.initializationPromise = null;
+        this.pendingData = null;  // For accumulating Google WAV data
     }
 
-    async waitForSourceOpen(mediaSource) {
-        if (mediaSource.readyState === 'open') return;
-        
-        await new Promise((resolve, reject) => {
-            const handleOpen = () => {
-                mediaSource.removeEventListener('sourceopen', handleOpen);
-                mediaSource.removeEventListener('error', handleError);
-                resolve();
-            };
-            
-            const handleError = (error) => {
-                mediaSource.removeEventListener('sourceopen', handleOpen);
-                mediaSource.removeEventListener('error', handleError);
-                reject(error);
-            };
-
-            mediaSource.addEventListener('sourceopen', handleOpen);
-            mediaSource.addEventListener('error', handleError);
-        });
+    determineFormat(firstChunk) {
+        // Check for WAV header (RIFF)
+        if (firstChunk[0] === 0x52 && firstChunk[1] === 0x49 && 
+            firstChunk[2] === 0x46 && firstChunk[3] === 0x46) {
+            return 'wav';
+        }
+        // Check for MP3 header
+        if ((firstChunk[0] === 0x49 && firstChunk[1] === 0x44 && firstChunk[2] === 0x33) || // ID3
+            (firstChunk[0] === 0xFF && (firstChunk[1] & 0xE0) === 0xE0)) { // MPEG frame sync
+            return 'mp3';
+        }
+        return this.providerType === 'Google' ? 'wav' : 'mp3';
     }
 
     async initialize(playbackId) {
@@ -54,12 +48,35 @@ class SpeechyPlayer {
                     await this.cleanup();
                 }
 
+                // For Google WAV data, use direct Audio element playback
+                if (this.providerType === 'Google') {
+                    this.audio = new Audio();
+                    this.pendingData = new Uint8Array();
+                    this.isInitialized = true;
+                    this.currentPlaybackId = playbackId;
+                    
+                    // Add event listeners
+                    this.audio.addEventListener('canplay', () => {
+                        console.log('Audio canplay event');
+                        this.checkAndPlay();
+                    });
+                    
+                    this.audio.addEventListener('playing', () => {
+                        console.log('Audio playing event');
+                        this.hasStartedPlaying = true;
+                    });
+                    
+                    this.audio.addEventListener('error', (e) => {
+                        console.error('Audio error:', this.audio.error);
+                    });
+                    
+                    return;
+                }
+
+                // For OpenAI (MP3), use MediaSource
                 this.currentPlaybackId = playbackId;
                 this.mediaSource = new MediaSource();
                 this.audio = new Audio();
-                
-                // Configure audio
-                this.audio.preload = 'auto';
                 
                 // Add event listeners
                 this.audio.addEventListener('canplay', () => {
@@ -67,29 +84,30 @@ class SpeechyPlayer {
                     this.checkAndPlay();
                 });
                 
-                this.audio.addEventListener('loadeddata', () => {
-                    console.log('Audio loadeddata event');
-                    this.checkAndPlay();
-                });
-
-                this.audio.addEventListener('play', () => {
-                    console.log('Audio play event');
+                this.audio.addEventListener('playing', () => {
+                    console.log('Audio playing event');
                     this.hasStartedPlaying = true;
                 });
-
-                this.audio.addEventListener('playing', () => console.log('Audio playing event'));
-                this.audio.addEventListener('waiting', () => console.log('Audio waiting event'));
-                this.audio.addEventListener('error', (e) => console.error('Audio error:', this.audio.error));
+                
+                this.audio.addEventListener('error', (e) => {
+                    console.error('Audio error:', this.audio.error);
+                });
 
                 // Create and set source
                 const url = URL.createObjectURL(this.mediaSource);
                 console.log('Created URL:', url);
                 this.audio.src = url;
 
-                // Wait for source to open
-                await this.waitForSourceOpen(this.mediaSource);
-                console.log('MediaSource opened');
+                // Wait for source open
+                await new Promise((resolve, reject) => {
+                    const handleOpen = () => {
+                        this.mediaSource.removeEventListener('sourceopen', handleOpen);
+                        resolve();
+                    };
+                    this.mediaSource.addEventListener('sourceopen', handleOpen);
+                });
                 
+                console.log('MediaSource opened');
                 this.isInitialized = true;
             } catch (error) {
                 console.error('Initialization error:', error);
@@ -101,46 +119,38 @@ class SpeechyPlayer {
         this.initializationPromise = null;
     }
 
-    async checkAndPlay() {
-        if (!this.audio || this.hasStartedPlaying || this.audio.readyState < 2) return;
-
-        try {
-            console.log('Attempting playback:', {
-                readyState: this.audio.readyState,
-                currentTime: this.audio.currentTime,
-                duration: this.audio.duration,
-                bytesAppended: this.totalBytesAppended
-            });
-
-            await this.audio.play();
-            console.log('Playback started successfully');
-        } catch (error) {
-            console.warn('Playback attempt failed:', error);
-            // Schedule retry if we have enough data
-            if (this.totalBytesAppended > 32768) {
-                setTimeout(() => this.checkAndPlay(), 100);
-            }
-        }
-    }
-
     async appendChunk(chunk, isLastChunk = false, playbackId) {
         try {
             if (!this.isInitialized || this.currentPlaybackId !== playbackId) {
                 await this.initialize(playbackId);
             }
 
-            if (!this.sourceBuffer && this.mediaSource.readyState === 'open') {
-                const mimeType = 'audio/mpeg';
-                console.log('Creating sourceBuffer with mimeType:', mimeType);
+            // Handle Google WAV data differently
+            if (this.providerType === 'Google') {
+                // Accumulate the chunks
+                const newData = new Uint8Array(this.pendingData.length + chunk.length);
+                newData.set(this.pendingData);
+                newData.set(chunk, this.pendingData.length);
+                this.pendingData = newData;
                 
-                this.sourceBuffer = this.mediaSource.addSourceBuffer(mimeType);
+                // On last chunk, create blob and play
+                if (isLastChunk) {
+                    const blob = new Blob([this.pendingData], { type: 'audio/wav' });
+                    const url = URL.createObjectURL(blob);
+                    this.audio.src = url;
+                }
+                
+                return;
+            }
+
+            // Handle OpenAI MP3 data with MediaSource
+            if (!this.sourceBuffer && this.mediaSource.readyState === 'open') {
+                this.sourceBuffer = this.mediaSource.addSourceBuffer('audio/mpeg');
                 this.sourceBuffer.addEventListener('updateend', () => {
                     console.log('SourceBuffer updateend event');
                     if (!this.isProcessing) {
                         this.processQueue();
                     }
-                    // Try to play after appending data
-                    this.checkAndPlay();
                 });
             }
 
@@ -153,11 +163,25 @@ class SpeechyPlayer {
         }
     }
 
+    async checkAndPlay() {
+        if (!this.audio || this.hasStartedPlaying || this.audio.readyState < 2) return;
+
+        try {
+            console.log('Attempting playback');
+            await this.audio.play();
+            console.log('Playback started successfully');
+        } catch (error) {
+            console.warn('Playback attempt failed:', error);
+            if (!this.hasStartedPlaying) {
+                setTimeout(() => this.checkAndPlay(), 100);
+            }
+        }
+    }
+
     async processQueue() {
         if (this.isProcessing || !this.sourceBuffer || !this.queue.length) return;
 
         this.isProcessing = true;
-        const errors = [];
 
         try {
             while (this.queue.length > 0) {
@@ -170,42 +194,21 @@ class SpeechyPlayer {
                 }
 
                 this.queue.shift();
-                const data = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
-                
-                try {
-                    this.sourceBuffer.appendBuffer(data);
-                    this.totalBytesAppended += data.length;
-                    
-                    await new Promise((resolve, reject) => {
-                        const handleUpdate = () => {
-                            this.sourceBuffer.removeEventListener('updateend', handleUpdate);
-                            this.sourceBuffer.removeEventListener('error', handleError);
-                            resolve();
-                        };
-                        
-                        const handleError = (event) => {
-                            this.sourceBuffer.removeEventListener('updateend', handleUpdate);
-                            this.sourceBuffer.removeEventListener('error', handleError);
-                            reject(event);
-                        };
-                        
-                        this.sourceBuffer.addEventListener('updateend', handleUpdate);
-                        this.sourceBuffer.addEventListener('error', handleError);
-                    });
+                this.sourceBuffer.appendBuffer(chunk);
+                this.totalBytesAppended += chunk.length;
 
-                    if (isLastChunk && this.mediaSource.readyState === 'open') {
-                        this.mediaSource.endOfStream();
-                    }
-                } catch (error) {
-                    errors.push(error);
-                    console.error('Error processing chunk:', error);
+                await new Promise(resolve => {
+                    this.sourceBuffer.addEventListener('updateend', resolve, { once: true });
+                });
+
+                if (isLastChunk && this.mediaSource.readyState === 'open') {
+                    this.mediaSource.endOfStream();
                 }
             }
+        } catch (error) {
+            console.error('Error in processQueue:', error);
         } finally {
             this.isProcessing = false;
-            if (errors.length > 0) {
-                throw new Error('Errors occurred while processing queue');
-            }
         }
     }
 
@@ -214,23 +217,14 @@ class SpeechyPlayer {
         
         if (this.audio) {
             try {
-                this.audio.pause();
+                await this.audio.pause();
                 this.audio.currentTime = 0;
                 
                 if (this.audio.src) {
                     URL.revokeObjectURL(this.audio.src);
                     this.audio.removeAttribute('src');
-                }
-                
-                // Wait for the audio element to fully reset
-                await new Promise(resolve => {
-                    const handleEmptied = () => {
-                        this.audio.removeEventListener('emptied', handleEmptied);
-                        resolve();
-                    };
-                    this.audio.addEventListener('emptied', handleEmptied);
                     this.audio.load();
-                });
+                }
             } catch (error) {
                 console.error('Error cleaning up audio:', error);
             }

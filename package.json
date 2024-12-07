@@ -1,0 +1,19 @@
+{
+  "name": "speechy",
+  "version": "1.0.0",
+  "description": "This repository is the source code of [Speechy](https://chrome.google.com/webstore/detail/speechy/flpjdaabfegkkifhogoilelmjcipihnp), a Chrome Extension for high quality Text-to-Speech (TTS) APIs.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0"
+  }
+}

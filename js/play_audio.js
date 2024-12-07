@@ -1,4 +1,4 @@
-const DEBUG = true; // Set to true to enable logging
+const DEBUG = false; // Set to true to enable logging
 
 function log(message, ...optionalParams) {
   if (DEBUG) {

@@ -10,6 +10,25 @@ We currently support the following APIs:
 - Google Cloud Text-to-Speech API
 - OpenAI Text-to-Speech API
 
+# Features
+
+Available:
+
+- Read selected text aloud from context menu
+- Support Google Cloud Text-to-Speech API
+- Support OpenAI Text-to-Speech API
+
+| Feature | Google API | OpenAI API |
+| --- | --- | --- |
+| Streaming | Impossible | OK |
+| English Proficiency | Good | Excellent |
+| Other Languages | Language selection required, but good | Language selection not needed, but not native |
+| Speed Control | Available | Not available |
+
+- Google has de, fr, ja, ko, nl, pt, sv, tr language options.
+- Choose OpenAI if you need faster response or for English.
+- Choose Google for non-English texts.
+
 ![Screenshot_2](/images/screenshot_2.png)
 
 # Why Paid APIs?

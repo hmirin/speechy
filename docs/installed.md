@@ -6,7 +6,8 @@ layout: pages
 
 [See what's new in the latest version!](https://github.com/hmirin/speechy/releases)
 
-Major update: Now you can use OpenAI's TTS! It's very natural for English. Please try it out.
+Major update: 
+- OpenAI API response has become much faster (using streaming API)!
 
 ❗ **Please restart your browser to use Speechy after installation or update. Speechy cannot be used in tabs that were opened before installation or update because of Chrome restrictions.**
 

@@ -277,6 +277,9 @@ class SpeechyService {
                 ? { voice: options.google_voice, speed: options.google_speed }
                 : { voice: options.openai_voice, model: options.openai_model };
     
+            // Generate a unique playback ID that includes the provider and voice
+            const playbackId = `${options.api_provider}-${providerOptions.voice}-${Date.now()}`;
+            
             // Get the stream
             const stream = await provider.synthesizeStream(selectedText, providerOptions);
             
@@ -294,7 +297,8 @@ class SpeechyService {
                         await chrome.tabs.sendMessage(tab.id, {
                             action: "play_audio",
                             audioData: Array.from(lastChunk),
-                            isLastChunk: true
+                            isLastChunk: true,
+                            playbackId
                         });
                     }
                     break;
@@ -306,7 +310,8 @@ class SpeechyService {
                 await chrome.tabs.sendMessage(tab.id, {
                     action: "play_audio",
                     audioData: Array.from(value),
-                    isLastChunk: false
+                    isLastChunk: false,
+                    playbackId
                 });
             }
     

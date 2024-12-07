@@ -24,6 +24,45 @@ class TTSProvider {
 }
 
 class GoogleTTSProvider extends TTSProvider {
+    // Helper to create WAV header
+    createWavHeader(dataLength) {
+        const buffer = new ArrayBuffer(44);
+        const view = new DataView(buffer);
+        
+        // "RIFF" chunk descriptor
+        view.setUint8(0, 0x52); // R
+        view.setUint8(1, 0x49); // I
+        view.setUint8(2, 0x46); // F
+        view.setUint8(3, 0x46); // F
+        view.setUint32(4, 36 + dataLength, true); // Chunk size
+        view.setUint8(8, 0x57); // W
+        view.setUint8(9, 0x41); // A
+        view.setUint8(10, 0x56); // V
+        view.setUint8(11, 0x45); // E
+        
+        // "fmt " sub-chunk
+        view.setUint8(12, 0x66); // f
+        view.setUint8(13, 0x6D); // m
+        view.setUint8(14, 0x74); // t
+        view.setUint8(15, 0x20); // " "
+        view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+        view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+        view.setUint16(22, 1, true); // NumChannels (1 for mono)
+        view.setUint32(24, 24000, true); // SampleRate (24kHz for Google TTS)
+        view.setUint32(28, 48000, true); // ByteRate (SampleRate * NumChannels * BitsPerSample/8)
+        view.setUint16(32, 2, true); // BlockAlign (NumChannels * BitsPerSample/8)
+        view.setUint16(34, 16, true); // BitsPerSample (16 bits)
+        
+        // "data" sub-chunk
+        view.setUint8(36, 0x64); // d
+        view.setUint8(37, 0x61); // a
+        view.setUint8(38, 0x74); // t
+        view.setUint8(39, 0x61); // a
+        view.setUint32(40, dataLength, true); // Subchunk2Size
+        
+        return new Uint8Array(buffer);
+    }
+
     async synthesizeStream(text, options) {
         const endpoint = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${this.apiKey}`;
         const language = options.voice.split("-").slice(0, 2).join("-");
@@ -35,26 +74,50 @@ class GoogleTTSProvider extends TTSProvider {
                 body: JSON.stringify({
                     "input": { "text": text },
                     "voice": { "name": options.voice, "languageCode": language },
-                    "audioConfig": { "audioEncoding": "LINEAR16", "speakingRate": speed }
+                    "audioConfig": { 
+                        "audioEncoding": "LINEAR16",
+                        "speakingRate": speed,
+                        "sampleRateHertz": 24000
+                    }
                 }),
             });
 
             if (!response.ok) {
                 const error = await response.json();
-                this.showError(`Error from Google Cloud Text-to-Speech API\nCode: ${error.error.code}\nMessage: ${error.error.message}`);
+                TTSProvider.showError(`Error from Google Cloud Text-to-Speech API\nCode: ${error.error.code}\nMessage: ${error.error.message}`);
                 throw error;
             }
 
             const json = await response.json();
-            // Convert base64 to stream
-            const binaryString = atob(json.audioContent);
-            const bytes = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
             
-            // Create a ReadableStream from the audio data
-            return new Response(bytes).body;
+            // Convert base64 to binary data
+            const binaryString = atob(json.audioContent);
+            const dataLength = binaryString.length;
+            const audioData = new Uint8Array(dataLength);
+            for (let i = 0; i < dataLength; i++) {
+                audioData[i] = binaryString.charCodeAt(i);
+            }
+
+            // Create WAV header
+            const wavHeader = this.createWavHeader(dataLength);
+
+            // Create a ReadableStream that yields the WAV data in chunks
+            return new ReadableStream({
+                start(controller) {
+                    // First, send the WAV header as a separate chunk
+                    controller.enqueue(wavHeader);
+
+                    // Then send the audio data in chunks
+                    const chunkSize = 32 * 1024; // 32KB chunks
+                    for (let offset = 0; offset < audioData.length; offset += chunkSize) {
+                        const end = Math.min(offset + chunkSize, audioData.length);
+                        const chunk = audioData.slice(offset, end);
+                        controller.enqueue(chunk);
+                    }
+                    controller.close();
+                }
+            });
+
         } catch (error) {
             console.error('Google TTS Error:', error);
             throw error;
@@ -189,14 +252,13 @@ class SpeechyService {
                     func: () => window.speechyPlayer !== undefined
                 });
             } catch {
-                // If the check fails or returns false, inject the script
                 await chrome.scripting.executeScript({
                     target: { tabId: tab.id },
                     files: ['js/play_audio.js']
                 });
             }
     
-            // Then get the selected text
+            // Get the selected text
             const selectedText = await this.getSelectedText();
             if (!selectedText) {
                 TTSProvider.showError(this.ERROR_MESSAGE);
@@ -218,22 +280,33 @@ class SpeechyService {
             // Get the stream
             const stream = await provider.synthesizeStream(selectedText, providerOptions);
             
-            // Read and send chunks
+            // Create a reader to process the stream
             const reader = stream.getReader();
-            let chunkCounter = 0;
-    
+            const chunks = [];
+            
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
-    
-                // Convert chunk to array for message passing
-                const chunkArray = Array.from(value);
-    
-                // Send chunk to content script
+                
+                if (done) {
+                    // Send the last chunk with isLastChunk flag
+                    if (chunks.length > 0) {
+                        const lastChunk = chunks[chunks.length - 1];
+                        await chrome.tabs.sendMessage(tab.id, {
+                            action: "play_audio",
+                            audioData: Array.from(lastChunk),
+                            isLastChunk: true
+                        });
+                    }
+                    break;
+                }
+                
+                chunks.push(value);
+                
+                // Send current chunk
                 await chrome.tabs.sendMessage(tab.id, {
                     action: "play_audio",
-                    audioData: chunkArray,
-                    chunkIndex: chunkCounter++
+                    audioData: Array.from(value),
+                    isLastChunk: false
                 });
             }
     

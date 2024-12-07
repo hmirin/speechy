@@ -9,7 +9,7 @@ class TTSProvider {
         throw new Error('Method not implemented');
     }
 
-    showError(message) {
+    static showError(message) {
         chrome.notifications.create({
             type: 'basic',
             iconUrl: '/images/icon128.png',
@@ -71,13 +71,9 @@ class OpenAITTSProvider extends TTSProvider {
                 throw error;
             }
 
-            const blob = await response.blob();
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = reject;
-            });
+            const arrayBuffer = await response.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            return Array.from(uint8Array);
         } catch (error) {
             console.error('OpenAI TTS Error:', error);
             throw error;
@@ -169,6 +165,20 @@ class SpeechyService {
 
     static async handleReadText() {
         try {
+            // Get active tab first
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab) {
+                console.error('No active tab found');
+                return;
+            }
+
+            // Inject the content script first if needed
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['js/play_audio.js']
+            });
+
+            // Then get the selected text
             const selectedText = await this.getSelectedText();
             if (!selectedText) {
                 this.showError(this.ERROR_MESSAGE);
@@ -187,28 +197,18 @@ class SpeechyService {
                 ? { voice: options.google_voice, speed: options.google_speed }
                 : { voice: options.openai_voice, model: options.openai_model };
 
-            const audioContent = await provider.synthesize(selectedText, providerOptions);
-            
-            const tabs = await chrome.tabs.query({active: true, currentWindow: true});
-            if (tabs.length === 0) return;
-            
-            chrome.tabs.sendMessage(tabs[0].id, {
+            const audioData = await provider.synthesize(selectedText, providerOptions);
+
+            // Send the message to the content script
+            await chrome.tabs.sendMessage(tab.id, {
                 action: "play_audio",
-                audioContent: audioContent
+                audioData: audioData
             });
+
         } catch (error) {
             console.error('Error in handleReadText:', error);
             this.showError("An error occurred while processing your request.");
         }
-    }
-
-    static showError(message) {
-        chrome.notifications.create({
-            type: 'basic',
-            iconUrl: '/images/icon128.png',
-            title: 'Speechy',
-            message
-        });
     }
 }
 

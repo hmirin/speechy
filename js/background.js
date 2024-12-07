@@ -17,10 +17,14 @@ class TTSProvider {
             message
         });
     }
+
+    async synthesizeStream(text, options) {
+        throw new Error('Method not implemented');
+    }
 }
 
 class GoogleTTSProvider extends TTSProvider {
-    async synthesize(text, options) {
+    async synthesizeStream(text, options) {
         const endpoint = `https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=${this.apiKey}`;
         const language = options.voice.split("-").slice(0, 2).join("-");
         const speed = options.speed || 1;
@@ -42,7 +46,15 @@ class GoogleTTSProvider extends TTSProvider {
             }
 
             const json = await response.json();
-            return json.audioContent;
+            // Convert base64 to stream
+            const binaryString = atob(json.audioContent);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            // Create a ReadableStream from the audio data
+            return new Response(bytes).body;
         } catch (error) {
             console.error('Google TTS Error:', error);
             throw error;
@@ -51,7 +63,7 @@ class GoogleTTSProvider extends TTSProvider {
 }
 
 class OpenAITTSProvider extends TTSProvider {
-    async synthesize(text, options) {
+    async synthesizeStream(text, options) {
         const endpoint = "https://api.openai.com/v1/audio/speech";
         const { voice = "alloy", model = "tts-1" } = options;
 
@@ -62,18 +74,16 @@ class OpenAITTSProvider extends TTSProvider {
                     "Authorization": `Bearer ${this.apiKey}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ model, input: text, voice }),
+                body: JSON.stringify({ model, input: text, voice, response_format: "mp3" }),
             });
 
             if (!response.ok) {
                 const error = await response.json();
-                this.showError(`Error from OpenAI Text-to-Speech API\nMessage: ${error.message}`);
+                TTSProvider.showError(`Error from OpenAI Text-to-Speech API\nMessage: ${error.message}`);
                 throw error;
             }
 
-            const arrayBuffer = await response.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-            return Array.from(uint8Array);
+            return response.body;
         } catch (error) {
             console.error('OpenAI TTS Error:', error);
             throw error;
@@ -171,43 +181,65 @@ class SpeechyService {
                 console.error('No active tab found');
                 return;
             }
-
+    
             // Inject the content script first if needed
-            await chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['js/play_audio.js']
-            });
-
+            try {
+                await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    func: () => window.speechyPlayer !== undefined
+                });
+            } catch {
+                // If the check fails or returns false, inject the script
+                await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['js/play_audio.js']
+                });
+            }
+    
             // Then get the selected text
             const selectedText = await this.getSelectedText();
             if (!selectedText) {
-                this.showError(this.ERROR_MESSAGE);
+                TTSProvider.showError(this.ERROR_MESSAGE);
                 return;
             }
-
+    
             const options = await this.getOptions();
             const provider = this.createTTSProvider(options);
             
             if (!provider) {
-                this.showError("Please select an API provider and setup your API key.");
+                TTSProvider.showError("Please select an API provider and setup your API key.");
                 return;
             }
-
+    
             const providerOptions = options.api_provider === "Google" 
                 ? { voice: options.google_voice, speed: options.google_speed }
                 : { voice: options.openai_voice, model: options.openai_model };
-
-            const audioData = await provider.synthesize(selectedText, providerOptions);
-
-            // Send the message to the content script
-            await chrome.tabs.sendMessage(tab.id, {
-                action: "play_audio",
-                audioData: audioData
-            });
-
+    
+            // Get the stream
+            const stream = await provider.synthesizeStream(selectedText, providerOptions);
+            
+            // Read and send chunks
+            const reader = stream.getReader();
+            let chunkCounter = 0;
+    
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+    
+                // Convert chunk to array for message passing
+                const chunkArray = Array.from(value);
+    
+                // Send chunk to content script
+                await chrome.tabs.sendMessage(tab.id, {
+                    action: "play_audio",
+                    audioData: chunkArray,
+                    chunkIndex: chunkCounter++
+                });
+            }
+    
         } catch (error) {
             console.error('Error in handleReadText:', error);
-            this.showError("An error occurred while processing your request.");
+            TTSProvider.showError("An error occurred while processing your request.");
         }
     }
 }

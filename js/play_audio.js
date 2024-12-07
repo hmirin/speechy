@@ -1,168 +1,232 @@
 // play_audio.js
 class SpeechyPlayer {
     constructor() {
+        this.reset();
+    }
+
+    reset() {
         this.mediaSource = null;
         this.sourceBuffer = null;
         this.audio = null;
         this.queue = [];
         this.isProcessing = false;
         this.isInitialized = false;
-        this.endOfStreamReceived = false;
+        this.currentPlaybackId = null;
+        this.hasStartedPlaying = false;
     }
 
-    async initialize() {
-        // Clean up any previous instance
-        this.cleanup();
-
-        // Create new MediaSource instance
-        this.mediaSource = new MediaSource();
-        this.audio = new Audio();
-        this.audio.src = URL.createObjectURL(this.mediaSource);
+    async initialize(playbackId) {
+        console.log('Initializing playback:', playbackId);
         
-        await new Promise((resolve) => {
-            this.mediaSource.addEventListener('sourceopen', () => {
-                this.isInitialized = true;
-                resolve();
-            }, { once: true });
+        if (this.currentPlaybackId !== playbackId) {
+            console.log('New playback ID, cleaning up previous playback');
+            await this.cleanup();
+        }
+
+        return new Promise((resolve, reject) => {
+            try {
+                this.currentPlaybackId = playbackId;
+                this.mediaSource = new MediaSource();
+                this.audio = new Audio();
+                
+                // Add event listeners
+                this.audio.addEventListener('play', () => console.log('Audio play event fired'));
+                this.audio.addEventListener('playing', () => console.log('Audio playing event fired'));
+                this.audio.addEventListener('waiting', () => console.log('Audio waiting for more data'));
+                this.audio.addEventListener('ended', () => console.log('Audio playback ended'));
+                this.audio.addEventListener('error', (e) => console.error('Audio error:', e));
+                
+                const handleSourceOpen = () => {
+                    console.log('MediaSource opened');
+                    this.isInitialized = true;
+                    this.mediaSource.removeEventListener('sourceopen', handleSourceOpen);
+                    resolve();
+                };
+
+                this.mediaSource.addEventListener('sourceopen', handleSourceOpen);
+                const url = URL.createObjectURL(this.mediaSource);
+                console.log('Created URL:', url);
+                this.audio.src = url;
+            } catch (error) {
+                console.error('Initialization error:', error);
+                reject(error);
+            }
         });
     }
 
-    async appendChunk(chunk, isLastChunk = false) {
+    async appendChunk(chunk, isLastChunk = false, playbackId) {
+        console.log('Appending chunk, isLastChunk:', isLastChunk, 'playbackId:', playbackId);
+        
         try {
-            if (!this.isInitialized) {
-                await this.initialize();
+            if (!this.isInitialized || this.currentPlaybackId !== playbackId) {
+                await this.initialize(playbackId);
             }
 
-            // If no sourceBuffer, create one based on the chunk type
-            if (!this.sourceBuffer) {
+            if (!this.sourceBuffer && this.mediaSource.readyState === 'open') {
                 const mimeType = this.determineFormat(chunk) === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+                console.log('Creating sourceBuffer with mimeType:', mimeType);
                 this.sourceBuffer = this.mediaSource.addSourceBuffer(mimeType);
                 
-                // Add updateend event listener for queue processing
+                // Set up updateend handler
                 this.sourceBuffer.addEventListener('updateend', () => {
+                    console.log('SourceBuffer updateend event');
                     this.processQueue();
                 });
             }
 
-            // Add chunk to queue
-            this.queue.push(chunk);
+            // Add to queue and process
+            this.queue.push({ chunk, isLastChunk });
+            console.log('Chunk added to queue. Queue length:', this.queue.length);
             
-            // Start processing if not already processing
-            if (!this.isProcessing) {
-                await this.processQueue();
-            }
-
-            // Handle last chunk
-            if (isLastChunk && this.mediaSource.readyState === 'open') {
-                await this.waitForQueueEmpty();
-                this.mediaSource.endOfStream();
-            }
-
-            // Start playback if not already playing
-            if (this.audio && this.audio.paused) {
-                await this.audio.play();
-            }
+            await this.processQueue();
 
         } catch (error) {
-            console.error('Error appending chunk:', error);
+            console.error('Error in appendChunk:', error);
             throw error;
         }
     }
 
-    async waitForQueueEmpty() {
-        return new Promise(resolve => {
-            const checkQueue = () => {
-                if (this.queue.length === 0 && !this.sourceBuffer.updating) {
-                    resolve();
-                } else {
-                    setTimeout(checkQueue, 100);
-                }
-            };
-            checkQueue();
-        });
-    }
-
     async processQueue() {
-        if (this.isProcessing || !this.sourceBuffer || this.queue.length === 0) {
+        if (this.isProcessing || !this.sourceBuffer) {
+            console.log('Queue processing skipped - already processing or no sourceBuffer');
+            return;
+        }
+
+        if (this.queue.length === 0) {
+            console.log('Queue processing skipped - queue empty');
             return;
         }
 
         this.isProcessing = true;
+        console.log('Starting queue processing');
 
         try {
             while (this.queue.length > 0) {
+                // If sourceBuffer is updating, wait for it to finish
                 if (this.sourceBuffer.updating) {
+                    console.log('Waiting for sourceBuffer update to complete');
                     await new Promise(resolve => {
                         this.sourceBuffer.addEventListener('updateend', resolve, { once: true });
                     });
                 }
 
-                const chunk = this.queue.shift();
+                const { chunk, isLastChunk } = this.queue[0];
+                this.queue.shift();
+
+                // Append the chunk
                 await this.appendToSourceBuffer(chunk);
+
+                // Try to start/resume playback
+                if (!this.hasStartedPlaying && this.audio.readyState >= 2) {
+                    console.log('Starting playback...');
+                    try {
+                        await this.audio.play();
+                        this.hasStartedPlaying = true;
+                    } catch (error) {
+                        console.error('Playback failed:', error);
+                    }
+                }
+
+                // Handle last chunk
+                if (isLastChunk && !this.sourceBuffer.updating) {
+                    console.log('Processing last chunk, ending stream');
+                    this.mediaSource.endOfStream();
+                }
             }
+        } catch (error) {
+            console.error('Error in processQueue:', error);
         } finally {
             this.isProcessing = false;
+            console.log('Queue processing completed');
+        }
+    }
+
+    async appendToSourceBuffer(chunk) {
+        if (!this.sourceBuffer || this.mediaSource.readyState !== 'open') {
+            throw new Error('Invalid state for appending');
+        }
+
+        try {
+            const data = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
+            console.log('Appending chunk of size:', data.length);
+            
+            this.sourceBuffer.appendBuffer(data);
+            
+            // Wait for the append to complete
+            await new Promise((resolve, reject) => {
+                const handleUpdate = () => {
+                    console.log('Chunk append completed');
+                    this.sourceBuffer.removeEventListener('updateend', handleUpdate);
+                    this.sourceBuffer.removeEventListener('error', handleError);
+                    resolve();
+                };
+                
+                const handleError = (event) => {
+                    console.error('Error appending to sourceBuffer:', event);
+                    this.sourceBuffer.removeEventListener('updateend', handleUpdate);
+                    this.sourceBuffer.removeEventListener('error', handleError);
+                    reject(event);
+                };
+                
+                this.sourceBuffer.addEventListener('updateend', handleUpdate);
+                this.sourceBuffer.addEventListener('error', handleError);
+            });
+        } catch (error) {
+            if (error.name === 'QuotaExceededError') {
+                console.log('Buffer full, waiting before retry');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                return this.appendToSourceBuffer(chunk);
+            }
+            throw error;
         }
     }
 
     determineFormat(chunk) {
-        // Check for MP3 header (ID3 or MPEG frame sync)
+        // MP3 detection
         if ((chunk[0] === 0x49 && chunk[1] === 0x44 && chunk[2] === 0x33) || // ID3
             (chunk[0] === 0xFF && (chunk[1] & 0xE0) === 0xE0)) { // MPEG frame sync
             return 'mp3';
         }
-        // Check for WAV header (RIFF)
+        // WAV detection
         if (chunk[0] === 0x52 && chunk[1] === 0x49 && 
             chunk[2] === 0x46 && chunk[3] === 0x46) {
             return 'wav';
         }
-        return 'mp3'; // Default to MP3
+        return 'mp3';
     }
 
-    async appendToSourceBuffer(chunk) {
-        try {
-            if (chunk instanceof Uint8Array) {
-                this.sourceBuffer.appendBuffer(chunk);
-            } else {
-                console.warn('Received non-Uint8Array chunk, converting...');
-                this.sourceBuffer.appendBuffer(new Uint8Array(chunk));
-            }
-        } catch (error) {
-            if (error.name === 'QuotaExceededError') {
-                // Wait for more buffer space
-                await new Promise(resolve => {
-                    this.sourceBuffer.addEventListener('updateend', resolve, { once: true });
-                });
-                // Try again
-                await this.appendToSourceBuffer(chunk);
-            } else {
-                console.error('Error in appendToSourceBuffer:', error);
-                throw error;
-            }
-        }
-    }
-
-    cleanup() {
+    async cleanup() {
+        console.log('Starting cleanup');
+        
         if (this.audio) {
-            this.audio.pause();
-            if (this.audio.src) {
-                URL.revokeObjectURL(this.audio.src);
+            try {
+                await this.audio.pause();
+                this.audio.currentTime = 0;
+                if (this.audio.src) {
+                    URL.revokeObjectURL(this.audio.src);
+                    this.audio.removeAttribute('src');
+                    this.audio.load();
+                }
+            } catch (error) {
+                console.error('Error cleaning up audio:', error);
             }
         }
+
         if (this.mediaSource && this.mediaSource.readyState === 'open') {
             try {
+                if (this.sourceBuffer && this.sourceBuffer.updating) {
+                    await new Promise(resolve => {
+                        this.sourceBuffer.addEventListener('updateend', resolve, { once: true });
+                    });
+                }
                 this.mediaSource.endOfStream();
             } catch (error) {
                 console.error('Error ending media stream:', error);
             }
         }
-        this.mediaSource = null;
-        this.sourceBuffer = null;
-        this.audio = null;
-        this.queue = [];
-        this.isProcessing = false;
-        this.isInitialized = false;
-        this.endOfStreamReceived = false;
+
+        this.reset();
+        console.log('Cleanup completed');
     }
 }
 
@@ -171,22 +235,27 @@ window.speechyPlayer = new SpeechyPlayer();
 
 // Message handling
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-    console.log('Received message:', message.action);
-    
     if (message.action === "play_audio") {
         try {
-            // Convert array to Uint8Array and append
+            const playbackId = message.playbackId || Date.now().toString();
             const chunk = new Uint8Array(message.audioData);
             const isLastChunk = message.isLastChunk || false;
-            await window.speechyPlayer.appendChunk(chunk, isLastChunk);
+            
+            console.log('Processing audio chunk:', {
+                playbackId,
+                isLastChunk,
+                chunkSize: chunk.length
+            });
+
+            await window.speechyPlayer.appendChunk(chunk, isLastChunk, playbackId);
             sendResponse({ success: true });
         } catch (error) {
             console.error('Error handling audio message:', error);
+            await window.speechyPlayer.cleanup();
             sendResponse({ success: false, error: error.message });
         }
-        return true;  // Keep the message channel open for async response
+        return true;
     }
 });
 
-// Let background script know that content script is ready
 chrome.runtime.sendMessage({ action: "content_script_ready" });

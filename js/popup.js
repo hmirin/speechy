@@ -7,16 +7,25 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("openai_voice").value = items.openai_voice;
     document.getElementById("openai_model").value = items.openai_model;
     document.getElementById("google_voice").value = items.google_voice;
+    document.getElementById("openai_speed").value = items.openai_speed;
     document.getElementById("google_speed").value = items.google_speed;
-    document.getElementById("speedometer").innerHTML = items.google_speed;
+    document.getElementById("openai_speedometer").innerHTML = items.openai_speed;
+    document.getElementById("google_speedometer").innerHTML = items.google_speed;
     switchApiOptions(items.api_provider);
   });
 
   // Set up event listeners
   document
+    .getElementById("openai_speed")
+    .addEventListener("change", function () {
+      document.getElementById("openai_speedometer").innerHTML = this.value;
+      saveOptions();
+  });
+
+  document
     .getElementById("google_speed")
     .addEventListener("change", function () {
-      document.getElementById("speedometer").innerHTML = this.value;
+      document.getElementById("google_speedometer").innerHTML = this.value;
       saveOptions();
     });
 
@@ -39,6 +48,7 @@ document.addEventListener("DOMContentLoaded", function () {
     "google_apikey",
     "openai_voice",
     "google_voice",
+    "openai_speed",
     "google_speed",
   ].forEach((id) =>
     document.getElementById(id).addEventListener("input", saveOptions),
@@ -54,6 +64,7 @@ function saveOptions() {
     openai_voice: document.getElementById("openai_voice").value,
     openai_model: document.getElementById("openai_model").value,
     google_voice: document.getElementById("google_voice").value,
+    openai_speed: document.getElementById("openai_speed").value,
     google_speed: document.getElementById("google_speed").value,
   });
 }

@@ -19,7 +19,7 @@ Available:
 | Streaming | Impossible | OK |
 | English Proficiency | Good | Excellent |
 | Other Languages | Language selection required, but good | Language selection not needed, but not native |
-| Speed Control | Available | Not available |
+| Speed Control | Available | Available |
 
 - Google has de, fr, ja, ko, nl, pt, sv, tr language options.
 - Choose OpenAI if you need faster response or for English.
@@ -28,5 +28,3 @@ Available:
 Planned:
 
 - Stop voice from extension menu.
-- Add Speed Control for OpenAI in client side.
-

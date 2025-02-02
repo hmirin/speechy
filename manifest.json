@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Speechy",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Wrapper for Paid High Quality Text-to-Speech (TTS) APIs like Google's Wavenet TTS.",
   "permissions": [
     "activeTab",

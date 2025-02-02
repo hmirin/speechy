@@ -7,6 +7,7 @@ const SPEECHY_CONFIG = {
     google_apikey: "",
     openai_voice: "alloy",
     openai_model: "tts-1",
+    openai_speed: 1,
     google_voice: "en-US-Wavenet-D",
     google_speed: 1,
   },

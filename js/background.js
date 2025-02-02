@@ -129,7 +129,7 @@ class GoogleTTSProvider extends TTSProvider {
 class OpenAITTSProvider extends TTSProvider {
   async synthesizeStream(text, options) {
     const endpoint = "https://api.openai.com/v1/audio/speech";
-    const { voice = "alloy", model = "tts-1" } = options;
+    const { voice = "alloy", model = "tts-1", speed = 1 } = options;
 
     try {
       const response = await fetch(endpoint, {
@@ -143,6 +143,7 @@ class OpenAITTSProvider extends TTSProvider {
           input: text,
           voice,
           response_format: "mp3",
+          speed,
         }),
       });
 
@@ -262,7 +263,7 @@ class SpeechyService {
         currentWindow: true,
       });
       if (!tab) {
-        console.error("[Speecby] No active tab found");
+        console.error("[Speechy] No active tab found");
         return;
       }
 
@@ -299,7 +300,7 @@ class SpeechyService {
       const providerOptions =
         options.api_provider === "Google"
           ? { voice: options.google_voice, speed: options.google_speed }
-          : { voice: options.openai_voice, model: options.openai_model };
+          : { voice: options.openai_voice, model: options.openai_model, speed: options.openai_speed };
 
       // Generate a unique playback ID that includes the provider and voice
       const playbackId = `${options.api_provider}-${providerOptions.voice}-${Date.now()}`;

@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", function () {
     .addEventListener("change", function () {
       document.getElementById("openai_speedometer").innerHTML = this.value;
       saveOptions();
-  });
+    });
 
   document
     .getElementById("google_speed")

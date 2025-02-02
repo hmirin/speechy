@@ -9,14 +9,7 @@ class TTSProvider {
     throw new Error("Method not implemented");
   }
 
-  static showError(message) {
-    chrome.notifications.create({
-      type: "basic",
-      iconUrl: "/images/icon128.png",
-      title: "Speechy",
-      message,
-    });
-  }
+  // TTSProvider no longer handles error display
 
   async synthesizeStream(text, options) {
     throw new Error("Method not implemented");
@@ -84,9 +77,7 @@ class GoogleTTSProvider extends TTSProvider {
 
       if (!response.ok) {
         const error = await response.json();
-        TTSProvider.showError(
-          `Error from Google Cloud Text-to-Speech API\nCode: ${error.error.code}\nMessage: ${error.error.message}`,
-        );
+        SpeechyService.showError('GOOGLE_TTS.GENERIC', error.error?.message || "API request failed");
         throw error;
       }
 
@@ -121,6 +112,11 @@ class GoogleTTSProvider extends TTSProvider {
       });
     } catch (error) {
       console.error("Google TTS Error:", error);
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        SpeechyService.showError('GOOGLE_TTS.FETCH_FAILED');
+      } else {
+        SpeechyService.showError('GOOGLE_TTS.GENERIC', error.message);
+      }
       throw error;
     }
   }
@@ -149,23 +145,55 @@ class OpenAITTSProvider extends TTSProvider {
 
       if (!response.ok) {
         const error = await response.json();
-        TTSProvider.showError(
-          `Error from OpenAI Text-to-Speech API\nMessage: ${error.message}`,
-        );
+        SpeechyService.showError('OPENAI_TTS.GENERIC', error.error?.message || error.message || "API request failed");
         throw error;
       }
 
       return response.body;
     } catch (error) {
       console.error("OpenAI TTS Error:", error);
+
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        SpeechyService.showError('OPENAI_TTS.FETCH_FAILED');
+      } else {
+        SpeechyService.showError('OPENAI_TTS.GENERIC', error.message);
+      }
       throw error;
     }
   }
 }
 
 class SpeechyService {
-  static ERROR_MESSAGE = SPEECHY_CONFIG.ERROR_MESSAGE;
   static DEFAULT_OPTIONS = SPEECHY_CONFIG.DEFAULT_OPTIONS;
+
+  static showError(errorKey, details = null) {
+    try {
+      const errorConfig = errorKey.split('.').reduce((obj, key) => obj[key], SPEECHY_CONFIG.ERRORS) || SPEECHY_CONFIG.ERRORS.GENERIC;
+      const message = details ? `${errorConfig}\n${details}` : errorConfig;
+
+      // Ensure message is not too long
+      const truncatedMessage = message.length > 1000 ? message.substring(0, 997) + "..." : message;
+
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "/images/icon128.png",
+        title: "Speechy",
+        message: truncatedMessage,
+        priority: 2,
+        requireInteraction: true
+      });
+    } catch (error) {
+      console.error("Error showing notification:", error);
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "/images/icon128.png",
+        title: "Speechy",
+        message: SPEECHY_CONFIG.ERRORS.GENERIC,
+        priority: 2,
+        requireInteraction: true
+      });
+    }
+  }
 
   static async initialize() {
     chrome.contextMenus.create({
@@ -247,10 +275,19 @@ class SpeechyService {
   static createTTSProvider(options) {
     switch (options.api_provider) {
       case "Google":
+        if (!options.google_apikey) {
+          SpeechyService.showError('NO_PROVIDER', 'Google API key is not configured');
+          return null;
+        }
         return new GoogleTTSProvider(options.google_apikey);
       case "OpenAI":
+        if (!options.openai_apikey) {
+          SpeechyService.showError('NO_PROVIDER', 'OpenAI API key is not configured');
+          return null;
+        }
         return new OpenAITTSProvider(options.openai_apikey);
       default:
+        SpeechyService.showError('NO_PROVIDER', 'No API provider selected');
         return null;
     }
   }
@@ -268,34 +305,53 @@ class SpeechyService {
       }
 
       // Inject the content script first if needed
+      // Check if the current page is a PDF or chrome:// URL
+      const url = tab?.url || '';
+      if (!url || url.startsWith('chrome://') || url.endsWith('.pdf') || url.includes('chrome.google.com/webstore')) {
+        SpeechyService.showError('NO_SELECTION');
+        return;
+      }
+
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           func: () => window.speechyPlayer !== undefined,
         });
-      } catch {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ["js/play_audio.js"],
-        });
+      } catch (error) {
+        // Handle connection error first
+        if (error.message.includes("Could not establish connection")) {
+          SpeechyService.showError('REFRESH_NEEDED');
+          return;
+        }
+
+        // Try injecting the script if it's not a connection error
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["js/play_audio.js"],
+          });
+        } catch (injectError) {
+          // If script injection fails on restricted pages, show NO_SELECTION error
+          // Otherwise show REFRESH_NEEDED error
+          if (injectError.message.includes("Cannot access")) {
+            SpeechyService.showError('NO_SELECTION');
+          } else {
+            SpeechyService.showError('REFRESH_NEEDED');
+          }
+          return;
+        }
       }
 
       // Get the selected text
       const selectedText = await this.getSelectedText();
       if (!selectedText) {
-        TTSProvider.showError(this.ERROR_MESSAGE);
+        SpeechyService.showError('NO_SELECTION');
         return;
       }
 
       const options = await this.getOptions();
       const provider = this.createTTSProvider(options);
-
-      if (!provider) {
-        TTSProvider.showError(
-          "Please select an API provider and setup your API key.",
-        );
-        return;
-      }
+      if (!provider) return; // エラーメッセージはcreateTTSProviderで表示済み
 
       const providerOptions =
         options.api_provider === "Google"
@@ -322,29 +378,45 @@ class SpeechyService {
           // Send the last chunk with isLastChunk flag
           if (chunks.length > 0) {
             const lastChunk = chunks[chunks.length - 1];
-            await chrome.tabs.sendMessage(tab.id, {
-              action: "play_audio",
-              audioData: Array.from(lastChunk),
-              isLastChunk: true,
-              playbackId,
-            });
+            try {
+              await chrome.tabs.sendMessage(tab.id, {
+                action: "play_audio",
+                audioData: Array.from(lastChunk),
+                isLastChunk: true,
+                playbackId,
+              });
+            } catch (error) {
+              if (error.message.includes("Could not establish connection")) {
+                SpeechyService.showError('REFRESH_NEEDED');
+                return;
+              }
+              throw error;
+            }
           }
           break;
         }
 
         chunks.push(value);
 
-        // Send current chunk
-        await chrome.tabs.sendMessage(tab.id, {
-          action: "play_audio",
-          audioData: Array.from(value),
-          isLastChunk: false,
-          playbackId,
-        });
+        try {
+          // Send current chunk
+          await chrome.tabs.sendMessage(tab.id, {
+            action: "play_audio",
+            audioData: Array.from(value),
+            isLastChunk: false,
+            playbackId,
+          });
+        } catch (error) {
+          if (error.message.includes("Could not establish connection")) {
+            SpeechyService.showError('REFRESH_NEEDED');
+            return;
+          }
+          throw error;
+        }
       }
     } catch (error) {
       console.error("Error in handleReadText:", error);
-      TTSProvider.showError("An error occurred while processing your request.");
+      // エラーはすでにプロバイダーで表示されているため、ここでは表示しない
     }
   }
 }
